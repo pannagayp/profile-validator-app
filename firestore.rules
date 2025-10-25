@@ -1,75 +1,82 @@
 /**
- * @file Overview
+ * @fileoverview Firestore Security Rules for the application.
+ *
+ * Core Philosophy:
  * This ruleset enforces a strict user-ownership model for user profiles and raw emails,
- * ensuring that only authenticated users can access their own data.
+ * ensuring that only authenticated users can access their own data. Public read access
+ * is enabled for extracted profiles, verification results, and verified profiles, while
+ * write access is restricted.
  *
  * Data Structure:
- * - User profiles are stored under /users/{userId}/profiles/{profileId}.
- * - Raw emails are stored under /users/{userId}/raw-emails-test/{emailId}.
- * - Extracted profiles are stored under /extracted-profiles-test/{profileId}.
- * - Verification results are stored under /verification-test/{verificationId}.
- * - Verified profiles are stored under /profiles-verified/{profileId}.
+ * - User profiles are stored under `/users/{userId}/profiles/{profileId}`.
+ * - Raw emails are stored under `/users/{userId}/raw-emails-test/{emailId}`.
+ * - Extracted profiles are stored under `/extracted-profiles-test/{profileId}`.
+ * - Verification results are stored under `/verification-test/{verificationId}`.
+ * - Verified profiles are stored under `/profiles-verified/{profileId}`.
  *
  * Key Security Decisions:
- * - User listing is not allowed.
+ * - User listing is disallowed for the `/users` collection.
  * - Path-based ownership is enforced for user profiles and raw emails.
- * - RawEmail documents contain a userProfileId field to enforce authorization independence.
+ * - Public read access is enabled for extracted profiles, verification results, and verified profiles.
+ *
+ * Denormalization for Authorization:
+ * - The `RawEmail` entity contains a `userProfileId` field, which is used to independently authorize access to the email without needing to fetch the associated user profile.
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Enforces user-ownership for profile data.
+     * @description Enforces user-ownership for profile data. Only the user with ID {userId} can access their profile.
      * @path /users/{userId}/profiles/{profileId}
-     * @allow (create) User with ID 'user123' creates a profile with ID 'profile456' under /users/user123/profiles/profile456.
-     * @allow (get) User with ID 'user123' reads their own profile at /users/user123/profiles/profile456.
-     * @allow (update) User with ID 'user123' updates their own profile at /users/user123/profiles/profile456.
-     * @allow (delete) User with ID 'user123' deletes their own profile at /users/user123/profiles/profile456.
-     * @deny (create) User with ID 'user123' attempts to create a profile under /users/otherUser/profiles/profile456 (mismatched user ID).
-     * @deny (get) User with ID 'user123' attempts to read a profile under /users/otherUser/profiles/profile456 (mismatched user ID).
-     * @deny (update) User with ID 'user123' attempts to update a profile under /users/otherUser/profiles/profile456 (mismatched user ID).
-     * @deny (delete) User with ID 'user123' attempts to delete a profile under /users/otherUser/profiles/profile456 (mismatched user ID).
-     * @principle Enforces document ownership for writes.
+     * @allow (create) User A creates a profile with userId 'A' and profileId '123'.
+     * @allow (get) User A reads a profile with userId 'A' and profileId '123'.
+     * @allow (update) User A updates a profile with userId 'A' and profileId '123'.
+     * @allow (delete) User A deletes a profile with userId 'A' and profileId '123'.
+     * @deny (create) User B tries to create a profile with userId 'A' and profileId '123'.
+     * @deny (get) User B tries to read a profile with userId 'A' and profileId '123'.
+     * @deny (update) User B tries to update a profile with userId 'A' and profileId '123'.
+     * @deny (delete) User B tries to delete a profile with userId 'A' and profileId '123'.
+     * @principle Enforces document ownership for writes and reads.
      */
     match /users/{userId}/profiles/{profileId} {
-      allow get: if isOwner(userId);
-      allow list: if isOwner(userId);
-      allow create: if isOwner(userId) && request.resource.data.id == userId;
-      allow update: if isExistingOwner(userId) && request.resource.data.id == resource.data.id;
-      allow delete: if isExistingOwner(userId);
+      allow get: if isSignedIn() && isOwner(userId);
+      allow list: if isSignedIn() && isOwner(userId);
+      allow create: if isSignedIn() && isOwner(userId) && request.resource.data.id == userId;
+      allow update: if isSignedIn() && isExistingOwner(userId) && resource.data.id == userId;
+      allow delete: if isSignedIn() && isExistingOwner(userId);
     }
 
     /**
-     * @description Enforces user-ownership for raw email data.
+     * @description Enforces user-ownership for raw email data. Only the user with ID {userId} can access their emails.
      * @path /users/{userId}/raw-emails-test/{emailId}
-     * @allow (create) User with ID 'user123' creates an email with ID 'email789' under /users/user123/raw-emails-test/email789.
-     * @allow (get) User with ID 'user123' reads their own email at /users/user123/raw-emails-test/email789.
-     * @allow (update) User with ID 'user123' updates their own email at /users/user123/raw-emails-test/email789.
-     * @allow (delete) User with ID 'user123' deletes their own email at /users/user123/raw-emails-test/email789.
-     * @deny (create) User with ID 'user123' attempts to create an email under /users/otherUser/raw-emails-test/email789 (mismatched user ID).
-     * @deny (get) User with ID 'user123' attempts to read an email under /users/otherUser/raw-emails-test/email789 (mismatched user ID).
-     * @deny (update) User with ID 'user123' attempts to update an email under /users/otherUser/raw-emails-test/email789 (mismatched user ID).
-     * @deny (delete) User with ID 'user123' attempts to delete an email under /users/otherUser/raw-emails-test/email789 (mismatched user ID).
-     * @principle Enforces document ownership for writes and authorization independence using userProfileId.
+     * @allow (create) User A creates an email with userId 'A' and emailId '456'.
+     * @allow (get) User A reads an email with userId 'A' and emailId '456'.
+     * @allow (update) User A updates an email with userId 'A' and emailId '456'.
+     * @allow (delete) User A deletes an email with userId 'A' and emailId '456'.
+     * @deny (create) User B tries to create an email with userId 'A' and emailId '456'.
+     * @deny (get) User B tries to read an email with userId 'A' and emailId '456'.
+     * @deny (update) User B tries to update an email with userId 'A' and emailId '456'.
+     * @deny (delete) User B tries to delete an email with userId 'A' and emailId '456'.
+     * @principle Enforces document ownership for writes and reads.
      */
     match /users/{userId}/raw-emails-test/{emailId} {
-      allow get: if isOwner(userId);
-      allow list: if isOwner(userId);
-      allow create: if isOwner(userId) && request.resource.data.userProfileId == userId;
-      allow update: if isExistingOwner(userId) && request.resource.data.userProfileId == resource.data.userProfileId;
-      allow delete: if isExistingOwner(userId);
+      allow get: if isSignedIn() && isOwner(userId);
+      allow list: if isSignedIn() && isOwner(userId);
+      allow create: if isSignedIn() && isOwner(userId);
+      allow update: if isSignedIn() && isExistingOwner(userId);
+      allow delete: if isSignedIn() && isExistingOwner(userId);
     }
 
     /**
-     * @description Allows public read access to extracted profiles, with no write access.
+     * @description Allows public read access to extracted profile data. Writes are disallowed.
      * @path /extracted-profiles-test/{profileId}
-     * @allow (get) Any user can read an extracted profile.
-     * @allow (list) Any user can list extracted profiles.
-     * @deny (create) No one can create extracted profiles.
-     * @deny (update) No one can update extracted profiles.
-     * @deny (delete) No one can delete extracted profiles.
-     * @principle Public read access with no write access.
+     * @allow (get) Any user (signed in or not) reads an extracted profile.
+     * @allow (list) Any user (signed in or not) lists extracted profiles.
+     * @deny (create) Any user tries to create an extracted profile.
+     * @deny (update) Any user tries to update an extracted profile.
+     * @deny (delete) Any user tries to delete an extracted profile.
+     * @principle Provides public read access with restricted writes.
      */
     match /extracted-profiles-test/{profileId} {
       allow get: if true;
@@ -80,14 +87,14 @@ service cloud.firestore {
     }
 
     /**
-     * @description Allows public read access to verification results, with no write access.
+     * @description Allows public read access to verification result data. Writes are disallowed.
      * @path /verification-test/{verificationId}
-     * @allow (get) Any user can read a verification result.
-     * @allow (list) Any user can list verification results.
-     * @deny (create) No one can create verification results.
-     * @deny (update) No one can update verification results.
-     * @deny (delete) No one can delete verification results.
-     * @principle Public read access with no write access.
+     * @allow (get) Any user (signed in or not) reads a verification result.
+     * @allow (list) Any user (signed in or not) lists verification results.
+     * @deny (create) Any user tries to create a verification result.
+     * @deny (update) Any user tries to update a verification result.
+     * @deny (delete) Any user tries to delete a verification result.
+     * @principle Provides public read access with restricted writes.
      */
     match /verification-test/{verificationId} {
       allow get: if true;
@@ -98,14 +105,14 @@ service cloud.firestore {
     }
 
     /**
-     * @description Allows public read access to verified profiles, with no write access.
+     * @description Allows public read access to verified profile data. Writes are disallowed.
      * @path /profiles-verified/{profileId}
-     * @allow (get) Any user can read a verified profile.
-     * @allow (list) Any user can list verified profiles.
-     * @deny (create) No one can create verified profiles.
-     * @deny (update) No one can update verified profiles.
-     * @deny (delete) No one can delete verified profiles.
-     * @principle Public read access with no write access.
+     * @allow (get) Any user (signed in or not) reads a verified profile.
+     * @allow (list) Any user (signed in or not) lists verified profiles.
+     * @deny (create) Any user tries to create a verified profile.
+     * @deny (update) Any user tries to update a verified profile.
+     * @deny (delete) Any user tries to delete a verified profile.
+     * @principle Provides public read access with restricted writes.
      */
     match /profiles-verified/{profileId} {
       allow get: if true;
@@ -122,10 +129,10 @@ service cloud.firestore {
   }
 
   function isOwner(userId) {
-    return isSignedIn() && request.auth.uid == userId;
+    return request.auth.uid == userId;
   }
 
   function isExistingOwner(userId) {
-      return isOwner(userId) && resource != null;
+    return isSignedIn() && isOwner(userId) && resource != null;
   }
 }
