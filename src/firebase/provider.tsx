@@ -62,7 +62,7 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
   auth,
 }) => {
   const [userAuthState, setUserAuthState] = useState<UserAuthState>({
-    user: null,
+    user: auth?.currentUser ?? null,
     isUserLoading: true, // Start loading until first auth event
     userError: null,
   });
@@ -112,12 +112,15 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
       userError: userAuthState.userError,
     };
   }, [firebaseApp, firestore, auth, userAuthState]);
+  
+  if (userAuthState.isUserLoading) {
+    return null;
+  }
 
   return (
     <FirebaseContext.Provider value={contextValue}>
       <FirebaseErrorListener />
-      {/* Only render children when not loading */}
-      {!userAuthState.isUserLoading ? children : null}
+      {children}
     </FirebaseContext.Provider>
   );
 };
