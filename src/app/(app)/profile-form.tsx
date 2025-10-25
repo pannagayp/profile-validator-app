@@ -14,7 +14,7 @@ import { Input } from '@/components/ui/input';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Separator } from '@/components/ui/separator';
 import { Loader2, Mail } from 'lucide-react';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { handleSignIn } from '@/services/gmail';
 
 
 const formSchema = z.object({
@@ -74,18 +74,9 @@ export function ProfileForm() {
               <span className="flex-shrink mx-4 text-muted-foreground text-xs">OR</span>
               <div className="flex-grow border-t border-muted"></div>
             </div>
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button variant="outline" className="w-full" disabled>
-                    <Mail className="mr-2 h-4 w-4" /> Connect with Gmail
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>Gmail OAuth connection is coming soon.</p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
+            <Button variant="outline" className="w-full" onClick={handleSignIn}>
+              <Mail className="mr-2 h-4 w-4" /> Connect with Gmail
+            </Button>
 
           </CardContent>
           <CardFooter>
