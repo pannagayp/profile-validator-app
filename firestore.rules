@@ -1,141 +1,114 @@
 /**
- * @fileOverview Firestore Security Rules for the application.
- *
- * Core Philosophy:
- * This ruleset enforces a strict user-ownership model for user profiles and raw emails,
- * ensuring that only authenticated users can access their own data. Public read access is granted
- * to other collections, with owner-only writes.
+ * @file Firestore Security Rules
+ * @description This ruleset enforces a strict user-ownership model for profile data and raw emails, while allowing public read access to extracted and verified profiles.
  *
  * Data Structure:
- * - User profiles are stored under `/users/{userId}/profiles/{profileId}`.
- * - Raw emails are stored under `/users/{userId}/raw-emails-test/{emailId}`.
- * - Extracted profiles are stored under `/extracted-profiles-test/{profileId}`.
- * - Verification results are stored under `/verification-test/{verificationId}`.
- * - Verified profiles are stored under `/profiles-verified/{profileId}`.
+ * - User profiles are stored under /users/{userId}/profiles/{profileId}, accessible only by the owning user.
+ * - Raw emails are stored under /users/{userId}/raw-emails-test/{emailId}, accessible only by the owning user.
+ * - Extracted profiles are stored in a top-level collection /extracted-profiles-test/{profileId} and are publicly readable.
+ * - Verification results are stored in a top-level collection /verification-test/{verificationId} and are publicly readable.
+ * - Verified profiles are stored in a top-level collection /profiles-verified/{profileId} and are publicly readable.
  *
  * Key Security Decisions:
- * - User listing is generally disallowed except where explicitly needed and secured.
- * - Data validation is relaxed in this prototyping phase, focusing on authorization.
+ * - User listing is disallowed to protect user privacy.
+ * - Extracted, verification, and verified profiles are publicly readable but only modifiable through backend services.
+ * - All write operations require authentication.
  *
  * Denormalization for Authorization:
- * - The `RawEmail` documents stores `userProfileId` to allow authorization without needing a `get()` call.
+ * - RawEmail documents include the userProfileId to allow direct ownership checks without additional reads.
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Allows a user to manage their own profile.
+     * @description Enforces document ownership for user profiles. Only the owner can read, create, update, or delete their profile.
      * @path /users/{userId}/profiles/{profileId}
-     * @allow (create) - Authenticated user with UID matching {userId} can create their profile.
-     * @allow (update) - Authenticated user with UID matching {userId} can update their profile.
-     * @allow (delete) - Authenticated user with UID matching {userId} can delete their profile.
-     * @allow (get) - Authenticated user with UID matching {userId} can get their profile.
-     * @allow (list) - Authenticated user with UID matching {userId} can list their profiles.
-     * @deny (create) - Authenticated user with UID NOT matching {userId} cannot create a profile.
-     * @deny (update) - Authenticated user with UID NOT matching {userId} cannot update a profile.
-     * @deny (delete) - Authenticated user with UID NOT matching {userId} cannot delete a profile.
-     * @deny (get) - Authenticated user with UID NOT matching {userId} cannot get a profile.
-     * @deny (list) - Authenticated user with UID NOT matching {userId} cannot list profiles.
+     * @allow (create) User A creates a profile with userId 'A' and profileId '123'.
+     * @allow (get, update, delete) User A reads/modifies their profile with userId 'A' and profileId '123'.
+     * @deny (create) User B tries to create a profile with userId 'A' and profileId '123'.
+     * @deny (get, update, delete) User B tries to read/modify User A's profile with userId 'A' and profileId '123'.
      * @principle Enforces document ownership for all operations.
      */
     match /users/{userId}/profiles/{profileId} {
-      // Allow the user to read their own profile.
-      allow get: if isSignedIn() && isOwner(userId);
-      allow list: if isSignedIn() && isOwner(userId);
+      // Helper function to check if the requesting user is the owner of the document
+      function isOwner(userId) {
+        return request.auth != null && request.auth.uid == userId;
+      }
 
-      // Allow the user to create their own profile, enforcing that the userId matches.
-      allow create: if isSignedIn() && isOwner(userId) && request.resource.data.id == userId;
+      // Helper function to check if the requesting user is the owner of the existing document
+      function isExistingOwner(userId) {
+        return isOwner(userId) && resource != null;
+      }
 
-      // Allow the user to update their own profile. Enforce immutability of the userId.
-      allow update: if isSignedIn() && isExistingOwner(userId) && resource.data.id == request.resource.data.id;
-
-      // Allow the user to delete their own profile.
-      allow delete: if isSignedIn() && isExistingOwner(userId);
+      allow get: if isOwner(userId);
+      allow list: if isOwner(userId);
+      allow create: if isOwner(userId) && request.resource.data.id == userId;
+      allow update: if isExistingOwner(userId) && request.resource.data.id == resource.data.id;
+      allow delete: if isExistingOwner(userId);
     }
 
     /**
-     * @description Allows a user to manage their own raw emails.
+     * @description Enforces document ownership for raw emails. Only the owner can read, create, update, or delete their emails.
      * @path /users/{userId}/raw-emails-test/{emailId}
-     * @allow (create) - Authenticated user with UID matching {userId} can create a raw email.
-     * @allow (update) - Authenticated user with UID matching {userId} can update a raw email.
-     * @allow (delete) - Authenticated user with UID matching {userId} can delete a raw email.
-     * @allow (get) - Authenticated user with UID matching {userId} can get a raw email.
-     * @allow (list) - Authenticated user with UID matching {userId} can list their raw emails.
-     * @deny (create) - Authenticated user with UID NOT matching {userId} cannot create a raw email.
-     * @deny (update) - Authenticated user with UID NOT matching {userId} cannot update a raw email.
-     * @deny (delete) - Authenticated user with UID NOT matching {userId} cannot delete a raw email.
-     * @deny (get) - Authenticated user with UID NOT matching {userId} cannot get a raw email.
-     * @deny (list) - Authenticated user with UID NOT matching {userId} cannot list raw emails.
+     * @allow (create) User A creates an email with userId 'A' and emailId '456'.
+     * @allow (get, update, delete) User A reads/modifies their email with userId 'A' and emailId '456'.
+     * @deny (create) User B tries to create an email with userId 'A' and emailId '456'.
+     * @deny (get, update, delete) User B tries to read/modify User A's email with userId 'A' and emailId '456'.
      * @principle Enforces document ownership for all operations.
      */
     match /users/{userId}/raw-emails-test/{emailId} {
-      allow get: if isSignedIn() && isOwner(userId);
-      allow list: if isSignedIn() && isOwner(userId);
-      allow create: if isSignedIn() && isOwner(userId) && request.resource.data.userProfileId == userId;
-      allow update: if isSignedIn() && isExistingOwner(userId) && resource.data.userProfileId == request.resource.data.userProfileId;
-      allow delete: if isSignedIn() && isExistingOwner(userId);
+      // Helper function to check if the requesting user is the owner of the document
+      function isOwner(userId) {
+        return request.auth != null && request.auth.uid == userId;
+      }
+
+      // Helper function to check if the requesting user is the owner of the existing document
+      function isExistingOwner(userId) {
+        return isOwner(userId) && resource != null;
+      }
+
+      allow get: if isOwner(userId);
+      allow list: if isOwner(userId);
+      allow create: if isOwner(userId);
+      allow update: if isExistingOwner(userId);
+      allow delete: if isExistingOwner(userId);
     }
 
     /**
-     * @description Allows public read access to extracted profiles, but restricts writes.
+     * @description Allows public read access to extracted profiles.
      * @path /extracted-profiles-test/{profileId}
-     * @allow (get) - Any user can read an extracted profile.
-     * @allow (list) - Any user can list extracted profiles.
-     * @deny (create) - No one can create an extracted profile without authentication and ownership. // TODO: Add owner validation once the schema is updated with an ownership field.
-     * @deny (update) - No one can update an extracted profile without authentication and ownership. // TODO: Add owner validation once the schema is updated with an ownership field.
-     * @deny (delete) - No one can delete an extracted profile without authentication and ownership. // TODO: Add owner validation once the schema is updated with an ownership field.
-     * @principle Public read, owner-only writes.
+     * @allow (get, list) Any user can read extracted profiles.
+     * @deny (create, update, delete) No user can create, update, or delete extracted profiles. This should be done by backend services only.
+     * @principle Allows public read access while restricting write access.
      */
     match /extracted-profiles-test/{profileId} {
-      allow get: if true;
-      allow list: if true;
+      allow get, list: if true;
       allow create, update, delete: if false; // TODO: Add owner validation once the schema is updated with an ownership field.
     }
 
     /**
-     * @description Allows public read access to verification results, but restricts writes.
+     * @description Allows public read access to verification results.
      * @path /verification-test/{verificationId}
-     * @allow (get) - Any user can read a verification result.
-     * @allow (list) - Any user can list verification results.
-     * @deny (create) - No one can create a verification result without authentication and ownership. // TODO: Add owner validation once the schema is updated with an ownership field.
-     * @deny (update) - No one can update a verification result without authentication and ownership. // TODO: Add owner validation once the schema is updated with an ownership field.
-     * @deny (delete) - No one can delete a verification result without authentication and ownership. // TODO: Add owner validation once the schema is updated with an ownership field.
-     * @principle Public read, owner-only writes.
+     * @allow (get, list) Any user can read verification results.
+     * @deny (create, update, delete) No user can create, update, or delete verification results. This should be done by backend services only.
+     * @principle Allows public read access while restricting write access.
      */
     match /verification-test/{verificationId} {
-      allow get: if true;
-      allow list: if true;
+      allow get, list: if true;
       allow create, update, delete: if false; // TODO: Add owner validation once the schema is updated with an ownership field.
     }
 
-    /**
-     * @description Allows public read access to verified profiles, but restricts writes.
+        /**
+     * @description Allows public read access to verified profiles.
      * @path /profiles-verified/{profileId}
-     * @allow (get) - Any user can read a verified profile.
-     * @allow (list) - Any user can list verified profiles.
-     * @deny (create) - No one can create a verified profile without authentication and ownership. // TODO: Add owner validation once the schema is updated with an ownership field.
-     * @deny (update) - No one can update a verified profile without authentication and ownership. // TODO: Add owner validation once the schema is updated with an ownership field.
-     * @deny (delete) - No one can delete a verified profile without authentication and ownership. // TODO: Add owner validation once the schema is updated with an ownership field.
-     * @principle Public read, owner-only writes.
+     * @allow (get, list) Any user can read verified profiles.
+     * @deny (create, update, delete) No user can create, update, or delete verified profiles. This should be done by backend services only.
+     * @principle Allows public read access while restricting write access.
      */
     match /profiles-verified/{profileId} {
-      allow get: if true;
-      allow list: if true;
+      allow get, list: if true;
       allow create, update, delete: if false; // TODO: Add owner validation once the schema is updated with an ownership field.
     }
-  }
-
-  // Helper functions
-  function isSignedIn() {
-    return request.auth != null;
-  }
-
-  function isOwner(userId) {
-    return request.auth.uid == userId;
-  }
-
-  function isExistingOwner(userId) {
-    return isOwner(userId) && resource != null;
   }
 }
