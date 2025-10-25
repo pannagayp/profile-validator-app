@@ -1,34 +1,30 @@
 /**
- * @fileoverview Firestore Security Rules for the application.
- *
- * Core Philosophy:
- * This ruleset enforces a strict user-ownership model for user profiles and raw emails,
- * ensuring that only authenticated users can access their own data. Public read access
- * is granted to extracted profiles, verification results, and verified profiles, while
- * write access is not permitted without further refinement.
+ * @file Firestore Security Rules
+ * @description This ruleset enforces a strict user-ownership model for user profiles and raw emails,
+ *              while allowing public read access to extracted and verified profile information.
  *
  * Data Structure:
- * - User profiles and raw emails are nested under /users/{userId}.
- * - Extracted profiles, verification results, and verified profiles are stored in
- *   top-level collections.
+ * - /users/{userId}/profiles/{profileId}: User profiles, accessible only by the owning user.
+ * - /users/{userId}/raw-emails-test/{emailId}: Raw emails, accessible only by the owning user.
+ * - /extracted-profiles-test/{profileId}: Extracted profiles, publicly readable.
+ * - /verification-test/{verificationId}: Verification results, publicly readable.
+ * - /profiles-verified/{profileId}: Verified profiles, publicly readable.
  *
  * Key Security Decisions:
- * - User listing is disallowed.
- * - Path-based ownership is enforced for user profiles and raw emails.
- * - Public read access is granted to extracted profiles, verification results, and
- *   verified profiles.
+ * - User data (profiles, emails) is strictly segregated under the /users/{userId} path, enforcing owner-only access.
+ * - Public collections (extracted profiles, verified profiles, verification results) allow read access to everyone.
+ * - User listing is disabled for all user-scoped collections.
+ * - Data validation is minimal, focusing on authorization and relational integrity in `create` and `update` operations.
  *
  * Denormalization for Authorization:
- * - The 'RawEmail' document contains a 'userProfileId' field that matches the
- *   document ID of the associated 'UserProfile'. This denormalization avoids the
- *   need for costly 'get()' calls to authorize access to the 'RawEmail' document.
+ * - RawEmail documents include a `userProfileId` field to directly link them to a user, avoiding costly `get()` calls to the UserProfile document for authorization.
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Checks if the request is made by an authenticated user.
+     * @description Checks if the request is made by a signed-in user.
      * @return {boolean} True if the user is signed in, false otherwise.
      */
     function isSignedIn() {
@@ -37,73 +33,69 @@ service cloud.firestore {
 
     /**
      * @description Checks if the authenticated user is the owner of the resource.
-     * @param {string} userId The user ID to compare against the request's auth UID.
-     * @return {boolean} True if the user is the owner, false otherwise.
+     * @param {string} userId - The user ID to compare against the authenticated user's UID.
+     * @return {boolean} True if the authenticated user's UID matches the provided userId, false otherwise.
      */
     function isOwner(userId) {
       return isSignedIn() && request.auth.uid == userId;
     }
 
     /**
-     * @description Checks if the authenticated user is the existing owner of the resource.
-     * @param {string} userId The user ID to compare against the request's auth UID.
-     * @return {boolean} True if the user is the owner and the resource exists, false otherwise.
+     * @description Checks if the authenticated user is the owner of the resource and the resource exists.
+     * @param {string} userId - The user ID to compare against the authenticated user's UID.
+     * @return {boolean} True if the authenticated user's UID matches the provided userId and the resource exists, false otherwise.
      */
     function isExistingOwner(userId) {
-        return isOwner(userId) && resource != null;
+      return isOwner(userId) && resource != null;
     }
 
     /**
      * @description Rules for user profiles.
      * @path /users/{userId}/profiles/{profileId}
-     * @allow (create) Authenticated user with matching {userId} can create their profile.
-     * @allow (get) Authenticated user with matching {userId} can get their profile.
-     * @allow (update) Authenticated user with matching {userId} can update their profile.
-     * @allow (delete) Authenticated user with matching {userId} can delete their profile.
-     * @deny (create) Authenticated user with mismatched {userId} cannot create the profile.
-     * @deny (get) Authenticated user with mismatched {userId} cannot get the profile.
-     * @deny (update) Authenticated user with mismatched {userId} cannot update the profile.
-     * @deny (delete) Authenticated user with mismatched {userId} cannot delete the profile.
-     * @principle Enforces document ownership for writes and reads.
+     * @allow (create) - User 'user123' can create a profile with id 'user123' under /users/user123/profiles/profile123.
+     * @allow (update) - User 'user123' can update their own profile at /users/user123/profiles/profile123.
+     * @allow (get) - User 'user123' can read their own profile at /users/user123/profiles/profile123.
+     * @deny (create) - User 'user456' cannot create a profile under /users/user123/profiles/.
+     * @deny (update) - User 'user456' cannot update user 'user123' profile at /users/user123/profiles/profile123.
+     * @deny (delete) - User 'user456' cannot delete user 'user123' profile at /users/user123/profiles/profile123.
+     * @principle Enforces document ownership for all operations.  Validates path-based ownership.
      */
     match /users/{userId}/profiles/{profileId} {
       allow get: if isOwner(userId);
       allow list: if isOwner(userId);
       allow create: if isOwner(userId) && request.resource.data.id == userId;
-      allow update: if isExistingOwner(userId) && request.resource.data.id == resource.data.id;
+      allow update: if isExistingOwner(userId) && resource.data.id == userId;
       allow delete: if isExistingOwner(userId);
     }
 
     /**
      * @description Rules for raw emails.
      * @path /users/{userId}/raw-emails-test/{emailId}
-     * @allow (create) Authenticated user with matching {userId} can create their raw email.
-     * @allow (get) Authenticated user with matching {userId} can get their raw email.
-     * @allow (update) Authenticated user with matching {userId} can update their raw email.
-     * @allow (delete) Authenticated user with matching {userId} can delete their raw email.
-     * @deny (create) Authenticated user with mismatched {userId} cannot create the raw email.
-     * @deny (get) Authenticated user with mismatched {userId} cannot get the raw email.
-     * @deny (update) Authenticated user with mismatched {userId} cannot update the raw email.
-     * @deny (delete) Authenticated user with mismatched {userId} cannot delete the raw email.
-     * @principle Enforces document ownership for writes and reads.
+     * @allow (create) - User 'user123' can create an email with id 'email123' under /users/user123/raw-emails-test/email123.
+     * @allow (update) - User 'user123' can update their own email at /users/user123/raw-emails-test/email123.
+     * @allow (get) - User 'user123' can read their own email at /users/user123/raw-emails-test/email123.
+     * @deny (create) - User 'user456' cannot create an email under /users/user123/raw-emails-test/.
+     * @deny (update) - User 'user456' cannot update user 'user123' email at /users/user123/raw-emails-test/email123.
+     * @deny (delete) - User 'user456' cannot delete user 'user123' email at /users/user123/raw-emails-test/email123.
+     * @principle Enforces document ownership for all operations. Validates path-based ownership.
      */
     match /users/{userId}/raw-emails-test/{emailId} {
       allow get: if isOwner(userId);
       allow list: if isOwner(userId);
       allow create: if isOwner(userId) && request.resource.data.userProfileId == userId;
-      allow update: if isExistingOwner(userId) && request.resource.data.userProfileId == resource.data.userProfileId;
+      allow update: if isExistingOwner(userId) && resource.data.userProfileId == userId;
       allow delete: if isExistingOwner(userId);
     }
 
     /**
-     * @description Rules for extracted profiles.
+     * @description Rules for extracted profiles. Public read access is allowed.
      * @path /extracted-profiles-test/{profileId}
-     * @allow (get) Any user can get extracted profiles.
-     * @allow (list) Any user can list extracted profiles.
-     * @deny (create) No user can create extracted profiles without validation.
-     * @deny (update) No user can update extracted profiles without validation.
-     * @deny (delete) No user can delete extracted profiles without validation.
-     * @principle Public read, restricted writes.
+     * @allow (get) - Any user can read extracted profiles.
+     * @allow (list) - Any user can list extracted profiles.
+     * @deny (create) - No one can create extracted profiles.
+     * @deny (update) - No one can update extracted profiles.
+     * @deny (delete) - No one can delete extracted profiles.
+     * @principle Allows public read access to extracted profiles.  Restricts all write operations.
      */
     match /extracted-profiles-test/{profileId} {
       allow get: if true;
@@ -114,14 +106,14 @@ service cloud.firestore {
     }
 
     /**
-     * @description Rules for verification results.
+     * @description Rules for verification results. Public read access is allowed.
      * @path /verification-test/{verificationId}
-     * @allow (get) Any user can get verification results.
-     * @allow (list) Any user can list verification results.
-     * @deny (create) No user can create verification results without validation.
-     * @deny (update) No user can update verification results without validation.
-     * @deny (delete) No user can delete verification results without validation.
-     * @principle Public read, restricted writes.
+     * @allow (get) - Any user can read verification results.
+     * @allow (list) - Any user can list verification results.
+     * @deny (create) - No one can create verification results.
+     * @deny (update) - No one can update verification results.
+     * @deny (delete) - No one can delete verification results.
+     * @principle Allows public read access to verification results. Restricts all write operations.
      */
     match /verification-test/{verificationId} {
       allow get: if true;
@@ -132,14 +124,14 @@ service cloud.firestore {
     }
 
     /**
-     * @description Rules for verified profiles.
+     * @description Rules for verified profiles. Public read access is allowed.
      * @path /profiles-verified/{profileId}
-     * @allow (get) Any user can get verified profiles.
-     * @allow (list) Any user can list verified profiles.
-     * @deny (create) No user can create verified profiles without validation.
-     * @deny (update) No user can update verified profiles without validation.
-     * @deny (delete) No user can delete verified profiles without validation.
-     * @principle Public read, restricted writes.
+     * @allow (get) - Any user can read verified profiles.
+     * @allow (list) - Any user can list verified profiles.
+     * @deny (create) - No one can create verified profiles.
+     * @deny (update) - No one can update verified profiles.
+     * @deny (delete) - No one can delete verified profiles.
+     * @principle Allows public read access to verified profiles. Restricts all write operations.
      */
     match /profiles-verified/{profileId} {
       allow get: if true;
