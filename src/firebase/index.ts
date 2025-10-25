@@ -48,3 +48,6 @@ export * from './non-blocking-updates';
 export * from './non-blocking-login';
 export * from './errors';
 export * from './error-emitter';
+
+// This is a re-export from provider.tsx, but it seems to be missing from the original index.ts
+export { useUser } from './provider';
