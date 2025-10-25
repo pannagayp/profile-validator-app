@@ -40,6 +40,22 @@ async function verifyEmailDeliverability(email: string): Promise<{
   return { deliverability: 'DELIVERABLE', reason: 'Email address is valid and can receive mail.' };
 }
 
+// Mock Email Sending Function
+async function sendConfirmationEmail(profile: { name?: string, email?: string, company?: string}, details: string) {
+    console.log('--- SIMULATING SENDING EMAIL ---');
+    console.log(`To: confirmation-recipient@example.com`);
+    console.log(`Subject: Profile Verified: ${profile.name}`);
+    console.log(`Body:`);
+    console.log(`A new profile has been successfully verified and saved.`);
+    console.log(`- Name: ${profile.name}`);
+    console.log(`- Email: ${profile.email}`);
+    console.log(`- Company: ${profile.company}`);
+    console.log(`- Verification Details: ${details}`);
+    console.log('---------------------------------');
+    // In a real app, you would use a service like Nodemailer or an email API.
+    await new Promise(resolve => setTimeout(resolve, 500));
+}
+
 
 export async function verifyExtractedProfile(profile: ExtractedProfile): Promise<void> {
   await verifyProfileFlow(profile);
@@ -110,5 +126,22 @@ const verifyProfileFlow = ai.defineFlow(
     };
 
     addDocumentNonBlocking(verificationCol, result);
+
+    // 4. If verification passes, write to profiles-verified and send email
+    if (domainMatch || deliverability === 'DELIVERABLE') {
+        const verifiedProfilesCol = collection(firestore, 'profiles-verified');
+        const verifiedProfileData = {
+            name: profile.name,
+            email: profile.email,
+            company: profile.company,
+            verified: true,
+            verification_details: reason,
+            timestamp: serverTimestamp(),
+        };
+        addDocumentNonBlocking(verifiedProfilesCol, verifiedProfileData);
+        await sendConfirmationEmail(profile, reason);
+    }
   }
 );
+
+    
