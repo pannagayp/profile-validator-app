@@ -51,3 +51,4 @@ export * from './error-emitter';
 
 // This is a re-export from provider.tsx, but it seems to be missing from the original index.ts
 export { useUser } from './provider';
+export { setDocumentNonBlocking, addDocumentNonBlocking, updateDocumentNonBlocking, deleteDocumentNonBlocking } from './non-blocking-updates';

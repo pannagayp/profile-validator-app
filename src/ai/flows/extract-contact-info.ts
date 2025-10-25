@@ -11,10 +11,11 @@ import {
   getFirestore,
   collection,
   getDocs,
-  addDoc,
   serverTimestamp,
 } from 'firebase/firestore';
-import { initializeFirebase } from '@/firebase';
+import { initializeFirebase, addDocumentNonBlocking } from '@/firebase';
+import { FirestorePermissionError } from '@/firebase/errors';
+import { errorEmitter } from '@/firebase/error-emitter';
 
 export async function extractContactInfo(): Promise<void> {
   await extractContactInfoFlow();
@@ -31,7 +32,16 @@ const extractContactInfoFlow = ai.defineFlow(
     const rawEmailsCol = collection(firestore, 'raw-emails-test');
     const extractedProfilesCol = collection(firestore, 'extracted-profiles-test');
 
-    const emailSnapshot = await getDocs(rawEmailsCol);
+    const emailSnapshot = await getDocs(rawEmailsCol).catch(serverError => {
+      const permissionError = new FirestorePermissionError({
+        path: rawEmailsCol.path,
+        operation: 'list',
+      });
+      errorEmitter.emit('permission-error', permissionError);
+      // Re-throw to stop execution if reading emails fails
+      throw permissionError; 
+    });
+
 
     for (const doc of emailSnapshot.docs) {
       const emailData = doc.data();
@@ -54,17 +64,21 @@ const extractContactInfoFlow = ai.defineFlow(
 
       const isComplete = name && email && company && linkedin;
 
-      const extractedData = {
+      const extractedData: any = {
         name,
         email,
         company,
         linkedin,
         extraction_status: isComplete ? 'complete' : 'partial',
         createdAt: serverTimestamp(),
-        ...(isComplete ? {} : { raw_text: rawText }),
       };
-
-      await addDoc(extractedProfilesCol, extractedData);
+      
+      if (!isComplete) {
+        extractedData.raw_text = rawText;
+      }
+      
+      // Use non-blocking write and let the error handler catch permission issues
+      addDocumentNonBlocking(extractedProfilesCol, extractedData);
     }
   }
 );
