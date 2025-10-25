@@ -1,12 +1,15 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useTransition } from 'react';
 import { collection, getDocs, orderBy, query } from 'firebase/firestore';
 import { useFirestore } from '@/firebase';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
-import { AlertCircle, CheckCircle2 } from 'lucide-react';
+import { AlertCircle, CheckCircle2, ShieldCheck, Loader2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { verifyProfile } from '@/app/actions';
+import { useToast } from '@/hooks/use-toast';
 
 type ExtractedProfile = {
   id: string;
@@ -20,8 +23,28 @@ type ExtractedProfile = {
 
 export function ExtractedProfileList() {
   const firestore = useFirestore();
+  const { toast } = useToast();
   const [profiles, setProfiles] = useState<ExtractedProfile[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isVerifying, startVerificationTransition] = useTransition();
+
+  const handleVerify = (profile: ExtractedProfile) => {
+    startVerificationTransition(async () => {
+      const result = await verifyProfile(profile);
+      if (result.success) {
+        toast({
+            title: 'Verification Started',
+            description: `Verification for ${profile.email} is in progress.`,
+        });
+      } else {
+        toast({
+            title: 'Verification Failed',
+            description: result.error || 'An unknown error occurred.',
+            variant: 'destructive',
+        });
+      }
+    });
+  };
 
   useEffect(() => {
     async function fetchProfiles() {
@@ -69,10 +92,16 @@ export function ExtractedProfileList() {
                         </a>
                       )}
                     </div>
-                    <Badge variant={p.extraction_status === 'complete' ? 'default' : 'secondary'} className="flex items-center gap-1.5">
-                      {p.extraction_status === 'complete' ? <CheckCircle2 className="h-4 w-4" /> : <AlertCircle className="h-4 w-4" />}
-                      {p.extraction_status}
-                    </Badge>
+                    <div className="flex items-center gap-2">
+                        <Button size="sm" variant="outline" onClick={() => handleVerify(p)} disabled={isVerifying}>
+                            {isVerifying ? <Loader2 className="h-4 w-4 animate-spin"/> : <ShieldCheck className="h-4 w-4" />}
+                            <span className="ml-2">Verify</span>
+                        </Button>
+                        <Badge variant={p.extraction_status === 'complete' ? 'default' : 'secondary'} className="flex items-center gap-1.5">
+                        {p.extraction_status === 'complete' ? <CheckCircle2 className="h-4 w-4" /> : <AlertCircle className="h-4 w-4" />}
+                        {p.extraction_status}
+                        </Badge>
+                    </div>
                   </div>
                   {p.extraction_status === 'partial' && p.raw_text && (
                     <details className="mt-2">

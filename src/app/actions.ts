@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache';
 import { addProfile, updateProfileStatus, addValidationError, getValidationErrors, clearValidationErrors } from '@/lib/db';
 import { summarizeValidationFailures } from '@/ai/flows/summarize-validation-failures';
 import { extractContactInfo } from '@/ai/flows/extract-contact-info';
+import { verifyExtractedProfile } from '@/ai/flows/verify-profile';
 
 const emailSchema = z.string().email({ message: 'Please enter a valid email address.' });
 
@@ -12,6 +13,16 @@ export type FormState = {
   message: string;
   type: 'success' | 'error';
 } | null;
+
+type ExtractedProfile = {
+  id: string;
+  name?: string;
+  email?: string;
+  company?: string;
+  linkedin?: string;
+  extraction_status: 'complete' | 'partial';
+  raw_text?: string;
+};
 
 // Simulate a background validation process
 async function triggerValidation(profileId: string, email: string) {
@@ -95,4 +106,16 @@ export async function processEmails() {
     console.error("Error processing emails:", error);
     return { success: false, error: "Failed to process emails." };
   }
+}
+
+export async function verifyProfile(profile: ExtractedProfile) {
+    try {
+        // Do not await, let it run in background
+        verifyExtractedProfile(profile);
+        revalidatePath('/admin');
+        return { success: true };
+    } catch(e) {
+        console.error("Error starting verification", e);
+        return { success: false, error: "Failed to start verification."}
+    }
 }

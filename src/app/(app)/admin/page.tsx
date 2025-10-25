@@ -1,12 +1,13 @@
 import { ErrorReport } from './error-report';
 import { ExtractProfiles } from './extract-profiles';
 import { ExtractedProfileList } from './extracted-profile-list';
+import { VerificationList } from './verification-list';
 import { Suspense } from 'react';
 
 export default function AdminPage() {
   return (
     <div className="min-h-screen p-4 sm:p-6 md:p-8">
-      <div className="max-w-4xl mx-auto space-y-8">
+      <div className="max-w-7xl mx-auto space-y-8">
         <header className="mb-8">
           <h1 className="font-headline text-3xl md:text-4xl font-bold tracking-tighter text-foreground">
             Admin Dashboard
@@ -23,6 +24,10 @@ export default function AdminPage() {
         
         <Suspense fallback={<div>Loading profiles...</div>}>
           <ExtractedProfileList />
+        </Suspense>
+
+        <Suspense fallback={<div>Loading verification results...</div>}>
+            <VerificationList />
         </Suspense>
       </div>
     </div>
