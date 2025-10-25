@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { revalidatePath } from 'next/cache';
 import { addProfile, updateProfileStatus, addValidationError, getValidationErrors, clearValidationErrors } from '@/lib/db';
 import { summarizeValidationFailures } from '@/ai/flows/summarize-validation-failures';
+import { extractContactInfo } from '@/ai/flows/extract-contact-info';
 
 const emailSchema = z.string().email({ message: 'Please enter a valid email address.' });
 
@@ -82,5 +83,16 @@ export async function generateSummaryAndClearErrors(): Promise<{ summary: string
   } catch (error) {
     console.error('AI summary generation failed:', error);
     return { summary: 'Failed to generate summary. Please try again later.' };
+  }
+}
+
+export async function processEmails() {
+  try {
+    await extractContactInfo();
+    revalidatePath('/admin');
+    return { success: true };
+  } catch (error) {
+    console.error("Error processing emails:", error);
+    return { success: false, error: "Failed to process emails." };
   }
 }
