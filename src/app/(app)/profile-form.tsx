@@ -1,7 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
-import { useFormState } from 'react-dom';
+import { useEffect, useActionState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -23,7 +22,7 @@ const formSchema = z.object({
 
 export function ProfileForm() {
   const { toast } = useToast();
-  const [state, formAction] = useFormState(createProfile, null);
+  const [state, formAction] = useActionState(createProfile, null);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
