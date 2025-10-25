@@ -6,6 +6,9 @@ import { addProfile, updateProfileStatus, addValidationError, getValidationError
 import { summarizeValidationFailures } from '@/ai/flows/summarize-validation-failures';
 import { extractContactInfo } from '@/ai/flows/extract-contact-info';
 import { verifyExtractedProfile } from '@/ai/flows/verify-profile';
+import { initializeFirebase, addDocumentNonBlocking } from '@/firebase';
+import { collection, serverTimestamp, writeBatch } from 'firebase/firestore';
+
 
 const emailSchema = z.string().email({ message: 'Please enter a valid email address.' });
 
@@ -117,5 +120,32 @@ export async function verifyProfile(profile: ExtractedProfile) {
     } catch(e) {
         console.error("Error starting verification", e);
         return { success: false, error: "Failed to start verification."}
+    }
+}
+
+export async function approveProfile(profiles: ExtractedProfile[]) {
+    try {
+        const { firestore } = initializeFirebase();
+        const verifiedProfilesCol = collection(firestore, 'profiles-verified');
+        const batch = writeBatch(firestore);
+
+        for (const profile of profiles) {
+             const docRef = collection(firestore, 'profiles-verified').doc();
+             batch.set(docRef, {
+                name: profile.name,
+                email: profile.email,
+                company: profile.company,
+                verified: true,
+                verification_details: "Manually Approved by Admin",
+                timestamp: serverTimestamp(),
+             });
+        }
+        await batch.commit();
+
+        revalidatePath('/admin');
+        return { success: true };
+    } catch(e: any) {
+        console.error("Error approving profile", e);
+        return { success: false, error: e.message || "Failed to approve profile."}
     }
 }

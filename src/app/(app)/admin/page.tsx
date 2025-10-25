@@ -1,8 +1,19 @@
-import { ErrorReport } from './error-report';
-import { ExtractProfiles } from './extract-profiles';
-import { ExtractedProfileList } from './extracted-profile-list';
-import { VerificationList } from './verification-list';
 import { Suspense } from 'react';
+import { RawEmailsTable } from './raw-emails-table';
+import { ExtractedProfilesTable } from './extracted-profiles-table';
+import { VerificationResultsTable } from './verification-results-table';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Skeleton } from '@/components/ui/skeleton';
+
+function TableSkeleton() {
+    return (
+        <div className="space-y-4">
+            <Skeleton className="h-10 w-full" />
+            <Skeleton className="h-10 w-full" />
+            <Skeleton className="h-10 w-full" />
+        </div>
+    )
+}
 
 export default function AdminPage() {
   return (
@@ -10,25 +21,49 @@ export default function AdminPage() {
       <div className="max-w-7xl mx-auto space-y-8">
         <header className="mb-8">
           <h1 className="font-headline text-3xl md:text-4xl font-bold tracking-tighter text-foreground">
-            Admin Dashboard
+            Data Dashboard
           </h1>
           <p className="text-muted-foreground mt-2">
-            Admin tools for managing profiles and data.
+            Monitor the email processing pipeline from raw data to verified profiles.
           </p>
         </header>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-          <ErrorReport />
-          <ExtractProfiles />
-        </div>
-        
-        <Suspense fallback={<div>Loading profiles...</div>}>
-          <ExtractedProfileList />
-        </Suspense>
+        <Card>
+            <CardHeader>
+                <CardTitle>Raw Emails</CardTitle>
+                <CardDescription>Unprocessed emails fetched from the Gmail account.</CardDescription>
+            </CardHeader>
+            <CardContent>
+                <Suspense fallback={<TableSkeleton />}>
+                    <RawEmailsTable />
+                </Suspense>
+            </CardContent>
+        </Card>
 
-        <Suspense fallback={<div>Loading verification results...</div>}>
-            <VerificationList />
-        </Suspense>
+        <Card>
+            <CardHeader>
+                <CardTitle>Extracted Profiles</CardTitle>
+                <CardDescription>Contact information extracted from raw emails. Select profiles and approve them.</CardDescription>
+            </CardHeader>
+            <CardContent>
+                <Suspense fallback={<TableSkeleton />}>
+                    <ExtractedProfilesTable />
+                </Suspense>
+            </CardContent>
+        </Card>
+
+        <Card>
+            <CardHeader>
+                <CardTitle>Verification Results</CardTitle>
+                <CardDescription>Automated verification scores and deliverability checks.</CardDescription>
+            </CardHeader>
+            <CardContent>
+                <Suspense fallback={<TableSkeleton />}>
+                    <VerificationResultsTable />
+                </Suspense>
+            </CardContent>
+        </Card>
+
       </div>
     </div>
   );
