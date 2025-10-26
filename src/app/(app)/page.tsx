@@ -6,14 +6,17 @@ import { useForm, SubmitHandler } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { processSingleEmail } from '@/app/actions';
-import { handleSignIn, initialize as initializeGmail } from '@/services/gmail';
+import { initialize, handleSignIn as attemptSignIn, getRecentEmails, type GmailMessage } from '@/services/gmail';
 
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
-import { Loader2, Mail, User, Building, Linkedin, Phone } from 'lucide-react';
+import { Loader2, Mail, User, Building, Linkedin, Phone, Inbox } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { formatDistanceToNow } from 'date-fns';
+
 
 const formSchema = z.object({
   email: z.string().email({ message: 'Please enter a valid email address.' }),
@@ -33,10 +36,26 @@ export default function HomePage() {
   const [extractedInfo, setExtractedInfo] = useState<ExtractedInfo | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [recentEmails, setRecentEmails] = useState<GmailMessage[]>([]);
+  const [isLoadingEmails, setIsLoadingEmails] = useState(false);
+
+
+  const onAuthSuccess = async () => {
+    setIsAuthenticated(true);
+    setIsLoadingEmails(true);
+    try {
+      const emails = await getRecentEmails();
+      setRecentEmails(emails);
+    } catch (e) {
+      console.error("Failed to fetch recent emails", e);
+    } finally {
+      setIsLoadingEmails(false);
+    }
+  }
 
   useEffect(() => {
-    // Pre-load the Google API scripts when the component mounts.
-    initializeGmail();
+    initialize(onAuthSuccess);
   }, []);
 
   const form = useForm<FormValues>({
@@ -66,7 +85,7 @@ export default function HomePage() {
 
   return (
     <div className="min-h-screen p-4 sm:p-6 md:p-8">
-      <div className="max-w-4xl mx-auto">
+      <div className="max-w-7xl mx-auto">
         <header className="mb-8 text-center">
           <h1 className="font-headline text-3xl md:text-4xl font-bold tracking-tighter text-foreground">
             Email Contact Extractor
@@ -84,13 +103,56 @@ export default function HomePage() {
                 <CardDescription>Authorize the app to read your Gmail inbox.</CardDescription>
               </CardHeader>
               <CardContent>
-                <Button variant="outline" className="w-full" onClick={handleSignIn}>
-                  <Mail className="mr-2 h-4 w-4" /> Connect with Gmail
+                <Button variant="outline" className="w-full" onClick={attemptSignIn} disabled={isAuthenticated}>
+                  <Mail className="mr-2 h-4 w-4" /> {isAuthenticated ? 'Gmail Connected' : 'Connect with Gmail'}
                 </Button>
               </CardContent>
             </Card>
 
-            <Card>
+            {isAuthenticated && (
+                <Card>
+                    <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                            <Inbox />
+                            Recent Emails
+                        </CardTitle>
+                        <CardDescription>
+                            Here are your 5 most recent emails.
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        {isLoadingEmails ? (
+                             <div className="flex items-center justify-center h-48">
+                                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                            </div>
+                        ) : (
+                            <ul className="space-y-4">
+                                {recentEmails.map(email => (
+                                    <li key={email.id} className="flex items-start gap-3">
+                                        <Avatar className="h-8 w-8 text-xs">
+                                            <AvatarFallback>{email.from.charAt(0)}</AvatarFallback>
+                                        </Avatar>
+                                        <div className="flex-1 overflow-hidden">
+                                            <div className="flex justify-between items-baseline">
+                                                <p className="font-medium text-sm truncate">{email.from}</p>
+                                                <p className="text-xs text-muted-foreground whitespace-nowrap">
+                                                    {formatDistanceToNow(new Date(email.date), { addSuffix: true })}
+                                                </p>
+                                            </div>
+                                            <p className="text-sm font-semibold truncate">{email.subject}</p>
+                                            <p className="text-xs text-muted-foreground truncate">{email.snippet}</p>
+                                        </div>
+                                    </li>
+                                ))}
+                            </ul>
+                        )}
+                    </CardContent>
+                </Card>
+            )}
+          </div>
+          
+          <div className="space-y-6">
+             <Card>
               <Form {...form}>
                 <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
                   <CardHeader>
@@ -105,7 +167,7 @@ export default function HomePage() {
                         <FormItem>
                           <FormLabel>Client's Email Address</FormLabel>
                           <FormControl>
-                            <Input placeholder="name@example.com" {...field} />
+                            <Input placeholder="name@example.com" {...field} disabled={!isAuthenticated} />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -113,7 +175,7 @@ export default function HomePage() {
                     />
                   </CardContent>
                   <CardFooter>
-                    <Button type="submit" disabled={isProcessing} className="w-full">
+                    <Button type="submit" disabled={isProcessing || !isAuthenticated} className="w-full">
                       {isProcessing ? (
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                       ) : null}
@@ -123,9 +185,7 @@ export default function HomePage() {
                 </form>
               </Form>
             </Card>
-          </div>
-          
-          <div className="space-y-6">
+
             <Card className="h-full">
               <CardHeader>
                 <CardTitle>Extracted Information</CardTitle>
@@ -183,5 +243,3 @@ export default function HomePage() {
     </div>
   );
 }
-
-    

@@ -12,6 +12,14 @@ let gisInited = false;
 let gapiLoadedPromise: Promise<void> | null = null;
 let gisLoadedPromise: Promise<void> | null = null;
 
+export type GmailMessage = {
+    id: string;
+    subject: string;
+    from: string;
+    snippet: string;
+    date: string;
+}
+
 // This function is the main public API for this module.
 export async function getLatestEmailBody(fromEmail: string): Promise<string | null> {
     // Ensure GAPI is ready.
@@ -69,6 +77,62 @@ export async function getLatestEmailBody(fromEmail: string): Promise<string | nu
     }
 }
 
+export async function getRecentEmails(count = 5): Promise<GmailMessage[]> {
+    if (!gapi || !gapi.client) {
+        throw new Error("GAPI client not loaded.");
+    }
+
+    try {
+        const response = await gapi.client.gmail.users.messages.list({
+            'userId': 'me',
+            'maxResults': count
+        });
+
+        const messages = response.result.messages || [];
+        if (messages.length === 0) {
+            return [];
+        }
+
+        const batch = gapi.client.newBatch();
+        for (const message of messages) {
+            if (message.id) {
+                batch.add(gapi.client.gmail.users.messages.get({
+                    'userId': 'me',
+                    'id': message.id,
+                    'format': 'metadata',
+                    'metadataHeaders': ['Subject', 'From', 'Date']
+                }));
+            }
+        }
+
+        const batchResponse = await batch;
+        const emailList: GmailMessage[] = [];
+
+        for (const messageId in batchResponse.result) {
+            const res = batchResponse.result[messageId];
+            const emailData = res.result;
+            const headers = emailData.payload?.headers || [];
+            
+            const getHeader = (name: string) => headers.find(h => h.name === name)?.value || '';
+            
+            emailList.push({
+                id: emailData.id,
+                subject: getHeader('Subject'),
+                from: getHeader('From').replace(/<.*>/, '').trim(),
+                snippet: emailData.snippet || '',
+                date: getHeader('Date')
+            });
+        }
+        
+        return emailList;
+
+    } catch (err: any) {
+        console.error("Error fetching recent emails:", err);
+        throw new Error(err.result?.error?.message || "Failed to fetch recent emails from Gmail.");
+    }
+}
+
+
 function loadScript(src: string): Promise<void> {
     return new Promise((resolve, reject) => {
         if (document.querySelector(`script[src="${src}"]`)) {
@@ -106,7 +170,7 @@ function initializeGapiClient(): Promise<void> {
     return gapiLoadedPromise;
 }
 
-function initializeGisClient(): Promise<void> {
+function initializeGisClient(authCallback: () => void): Promise<void> {
     if (!gisLoadedPromise) {
         gisLoadedPromise = new Promise((resolve, reject) => {
             loadScript('https://accounts.google.com/gsi/client')
@@ -122,7 +186,8 @@ function initializeGisClient(): Promise<void> {
                             if (gapi && gapi.client) {
                                 gapi.client.setToken({ access_token: resp.access_token });
                             }
-                             console.log("Authentication successful and token set.");
+                            console.log("Authentication successful and token set.");
+                            authCallback();
                         },
                     });
                     gisInited = true;
@@ -134,19 +199,17 @@ function initializeGisClient(): Promise<void> {
     return gisLoadedPromise;
 }
 
-export async function initialize() {
+export async function initialize(authCallback: () => void) {
     if (gapiInited && gisInited) {
         return;
     }
-    await Promise.all([initializeGapiClient(), initializeGisClient()]);
+    await Promise.all([initializeGapiClient(), initializeGisClient(authCallback)]);
 }
 
 export function handleSignIn() {
     if (tokenClient) {
-        // This is the call that opens the popup.
         tokenClient.requestAccessToken({ prompt: 'consent' });
     } else {
-        // This can happen if the GIS script hasn't loaded when the user clicks.
         console.error("Token client is not ready. GIS might not have been initialized correctly.");
     }
 }
