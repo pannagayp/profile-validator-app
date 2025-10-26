@@ -177,48 +177,35 @@
     ]
   },
   "firestore": {
-    "structure": [
+    "collections": [
       {
         "path": "/extracted-profiles-test/{profileId}",
-        "definition": {
-          "entityName": "ExtractedProfile",
-          "schema": {
-            "$ref": "#/backend/entities/ExtractedProfile"
-          },
-          "description": "Stores contact information extracted from raw emails."
-        }
+        "schema": {
+          "$ref": "#/entities/ExtractedProfile"
+        },
+        "description": "Stores contact information extracted from raw emails."
       },
       {
         "path": "/verification-test/{verificationId}",
-        "definition": {
-          "entityName": "VerificationResult",
-          "schema": {
-            "$ref": "#/backend/entities/VerificationResult"
-          },
-          "description": "Stores the results of profile verifications."
-        }
+        "schema": {
+          "$ref": "#/entities/VerificationResult"
+        },
+        "description": "Stores the results of profile verifications."
       },
       {
         "path": "/profiles-verified/{profileId}",
-        "definition": {
-          "entityName": "VerifiedProfile",
-          "schema": {
-            "$ref": "#/backend/entities/VerifiedProfile"
-          },
-          "description": "Stores profiles that have passed verification."
-        }
+        "schema": {
+          "$ref": "#/entities/VerifiedProfile"
+        },
+        "description": "Stores profiles that have passed verification."
       },
       {
         "path": "/linkedin-verifications/{verificationId}",
-        "definition": {
-          "entityName": "LinkedInVerification",
-          "schema": {
-            "$ref": "#/backend/entities/LinkedInVerification"
-          },
-          "description": "Stores the results of LinkedIn profile validations."
-        }
+        "schema": {
+          "$ref": "#/entities/LinkedInVerification"
+        },
+        "description": "Stores the results of LinkedIn profile validations."
       }
-    ],
-    "reasoning": "This Firestore data structure is designed to securely store user profiles and raw emails fetched from Gmail, focusing on clear ownership and authorization independence. We utilize path-based ownership for user profiles and raw emails to ensure that only the associated user can access their data. This design avoids complex `get()` calls in security rules, promoting atomic operations and simplified debugging.\n\nThe structure supports secure `list` operations (QAPs) through structural segregation. User profiles and their associated raw emails are stored under the `/users/{userId}` path, preventing unauthorized access. Access to the `raw-emails-test` collection is restricted to the user identified by `{userId}`. This segregation ensures that users can only list emails associated with their own profile.\n\nAuthorization independence is achieved by associating each `RawEmail` document with its `userProfileId`. This eliminates the need to fetch the user profile to authorize access to the email. All authorization decisions can be made based on the `request.auth.uid` and the `userProfileId` within the `RawEmail` document."
+    ]
   }
 }

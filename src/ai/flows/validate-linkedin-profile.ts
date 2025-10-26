@@ -19,7 +19,7 @@ const LinkedInValidationInputSchema = z.object({
   company: z.string().describe('The company the user claims to work for.'),
   profileId: z.string().describe('The ID of the original extracted profile document.'),
 });
-type LinkedInValidationInput = z.infer<typeof LinkedInValidationInputSchema>;
+export type LinkedInValidationInput = z.infer<typeof LinkedInValidationInputSchema>;
 
 // Output schema for the LinkedIn validation flow
 const LinkedInValidationOutputSchema = z.object({

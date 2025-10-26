@@ -123,7 +123,7 @@ const verifyProfileFlow = ai.defineFlow(
                 company: profile.company,
                 profileId: profile.id,
             });
-            reason += `LinkedIn Validation: ${linkedInResult.status}. `;
+            reason += `LinkedIn Validation: ${linkedInResult.message} `;
             if (linkedInResult.status === 'verified') {
                 score += 0.2; // Add bonus points for LinkedIn match
             }
