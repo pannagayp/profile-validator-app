@@ -9,72 +9,65 @@
 
 import { ai } from '@/ai/genkit';
 import { LinkedInValidationInputSchema, LinkedInValidationOutputSchema, type LinkedInValidationInput, type LinkedInValidationOutput } from '@/ai/schemas';
+import { ApifyClient } from 'apify-client';
 
 
 /**
  * Apify LinkedIn Search Function
  * ===================================================================================
- *  TO MAKE THIS REAL:
- *  1. You have already chosen Apify and have your API token in the .env file.
- *  2. You have provided the Actor ID, which is now in the code below.
- *  3. UNCOMMENT the `fetch` logic below.
- *  4. READ the documentation for your chosen Actor (`apimaestro/linkedin-profile-batch-scraper-no-cookies-required`)
- *     to confirm its exact input and output structure. You may need to adjust the `body` of the
- *     `fetch` call and how the `results` are parsed.
+ *  This function now attempts a real API call to Apify.
  * ===================================================================================
  */
 async function searchApifyLinkedIn(name: string, companyName: string): Promise<{ profileUrl: string; company: string } | null> {
-    console.log(`[Apify Search] Searching for profile with name: ${name}`);
+    console.log(`[Apify Search] Attempting to find profile for: ${name}`);
     const apifyToken = process.env.APIFY_API_TOKEN;
     if (!apifyToken) {
-        console.warn("APIFY_API_TOKEN is not set. Using mock data. For a real search, add your Apify token to the .env file.");
+        throw new Error("APIFY_API_TOKEN is not set in the .env file.");
     }
-    await new Promise(resolve => setTimeout(resolve, 1500)); // Simulate network delay
 
-    // ============================================================================================
-    // START: REPLACE THIS MOCK LOGIC WITH YOUR REAL APIFY API CALL
-    // ============================================================================================
-
-    // You would use `fetch` here to call the Apify API.
-    // This is a simplified example. You'll need to read Apify's documentation.
-    /*
+    const client = new ApifyClient({ token: apifyToken });
     const ACTOR_ID = "apimaestro/linkedin-profile-batch-scraper-no-cookies-required";
-    const runResponse = await fetch(`https://api.apify.com/v2/acts/${ACTOR_ID}/runs?token=${apifyToken}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            // The input for your actor, e.g., a search query or profile URL
-            // This is a guess based on common actor inputs! CHECK THE DOCUMENTATION.
-            "profileUrls": [`https://www.linkedin.com/in/${name.replace(/\s+/g, '-')}`] 
-        }),
-    });
-    const runData = await runResponse.json();
-    const runId = runData.data.id;
 
-    // You would then need to poll the run until it's finished and fetch the dataset.
-    // This is a complex process and Apify provides client libraries that can simplify this.
-    // For a real implementation, consider using the `apify-client` NPM package.
-    */
+    // Prepare the Actor input.
+    // NOTE: This input structure is a GUESS. You MUST check the documentation for your Actor.
+    const actorInput = {
+        "profileUrls": [`https://www.linkedin.com/in/${name.replace(/\s+/g, '-')}`]
+    };
 
-    // For now, we will continue to use the mock logic so the app doesn't break.
-    // UNCOMMENT the code above and DELETE the mock logic below when you are ready.
-    if (process.env.MOCK_LINKEDIN_API_LIMIT_REACHED === 'true') {
-        throw new Error('Apify API limit reached or task failed');
-    }
-    if (name.toLowerCase().includes('unknown')) {
+    console.log(`Starting Apify actor '${ACTOR_ID}' with input:`, actorInput);
+
+    // Run the Actor and wait for it to finish.
+    const run = await client.actor(ACTOR_ID).call(actorInput);
+
+    console.log('Apify actor run finished. Fetching results...');
+
+    // Fetch the results from the Actor's dataset.
+    const { items } = await client.dataset(run.defaultDatasetId).listItems();
+
+    // Process the results to find the best match.
+    if (items && items.length > 0) {
+        // The structure of `items[0]` depends entirely on the Actor's output.
+        // You will need to inspect the 'Output' or 'Dataset' tab on the Actor's page in Apify.
+        const firstResult: any = items[0];
+
+        // This is a guess for the output fields. You will likely need to change these.
+        const profileUrl = firstResult.linkedinUrl || firstResult.url;
+        const company = firstResult.company || (firstResult.experience && firstResult.experience[0]?.company);
+
+        if (!profileUrl || !company) {
+            console.warn("Could not extract 'profileUrl' or 'company' from Apify result. Check Actor output schema.", firstResult);
+            return null;
+        }
+
+        console.log(`[Apify Result] Found profile: ${profileUrl} at ${company}`);
+        return {
+            profileUrl,
+            company,
+        };
+    } else {
+        console.log('Apify actor did not return any items.');
         return null;
     }
-    const mockCompany = 'MockTech Inc.';
-    const sanitizedName = name.trim().toLowerCase().replace(/[\s\r\n\t_'.]+/g, '-').replace(/[^a-z0-9-]/g, '');
-    const mockProfileUrl = `https://www.linkedin.com/in/${sanitizedName}`;
-    console.log(`[Mock Response] Found profile: ${mockProfileUrl} at ${mockCompany}`);
-    return {
-        profileUrl: mockProfileUrl,
-        company: mockCompany,
-    };
-    // ============================================================================================
-    // END: REPLACE MOCK LOGIC
-    // ============================================================================================
 }
 
 
