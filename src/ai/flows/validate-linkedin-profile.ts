@@ -45,7 +45,7 @@ async function searchApifyLinkedIn(linkedinUrl: string, companyName: string): Pr
     }
     
     const client = new ApifyClient({ token: apifyToken });
-    const ACTOR_ID = "apidojo/linkedin-profile-scraper"; // Switched to a different actor
+    const ACTOR_ID = "apidojo/linkedin-profile-scraper"; 
 
     // Prepare the Actor input.
     const actorInput = {
