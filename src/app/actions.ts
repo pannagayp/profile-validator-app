@@ -22,19 +22,13 @@ type ExtractedInfo = {
   linkedin?: string | null;
 };
 
-export async function processSingleEmail(email: string): Promise<{ success: boolean; data?: ExtractedInfo; error?: string }> {
-  const validation = emailSchema.safeParse(email);
-  if (!validation.success) {
-    return { success: false, error: "Invalid email address provided." };
+// This action now accepts the email body directly from the client
+export async function processSingleEmail(emailBody: string): Promise<{ success: boolean; data?: ExtractedInfo; error?: string }> {
+  if (!emailBody) {
+    return { success: false, error: "Email body was empty." };
   }
 
   try {
-    const emailBody = await getLatestEmailBody(validation.data);
-
-    if (!emailBody) {
-      return { success: false, error: `No email found from ${validation.data}.` };
-    }
-
     // Save the raw email to Firestore for auditing
     const { firestore } = initializeFirebase();
     const rawEmailsCol = collection(firestore, 'raw-emails-test');
@@ -42,7 +36,6 @@ export async function processSingleEmail(email: string): Promise<{ success: bool
         emailBody: emailBody,
         timestamp: serverTimestamp()
     });
-
 
     const extractedData = await extractContactInfo({ emailBody });
     
@@ -57,7 +50,15 @@ export async function processSingleEmail(email: string): Promise<{ success: bool
 
     if (docRef) {
       // Trigger verification flow asynchronously
-      verifyExtractedProfile({ id: docRef.id, ...extractedData, extraction_status: 'partial' }); // partial is default
+      // The schema for verifyExtractedProfile expects an id, which we have from the docRef
+      const profileForVerification = { 
+        id: docRef.id, 
+        ...extractedData, 
+        // Ensure status matches the expected enum, defaulting to partial
+        extraction_status: (extractedData.name && extractedData.email && extractedData.company ? 'complete' : 'partial') as 'complete' | 'partial',
+        raw_text: emailBody
+      };
+      verifyExtractedProfile(profileForVerification);
     }
     
     revalidatePath('/admin');

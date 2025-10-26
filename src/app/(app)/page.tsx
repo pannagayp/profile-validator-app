@@ -6,7 +6,7 @@ import { useForm, SubmitHandler } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { processSingleEmail } from '@/app/actions';
-import { initialize, handleSignIn as attemptSignIn, getRecentEmails, type GmailMessage } from '@/services/gmail';
+import { initialize, handleSignIn as attemptSignIn, getRecentEmails, getLatestEmailBody, type GmailMessage } from '@/services/gmail';
 
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -74,11 +74,22 @@ export default function HomePage() {
     setExtractedInfo(null);
     setError(null);
     try {
-      const result = await processSingleEmail(data.email);
+      // Step 1: Fetch email body on the client
+      const emailBody = await getLatestEmailBody(data.email);
+      
+      if (!emailBody) {
+        setError(`No email found from ${data.email}.`);
+        setIsProcessing(false);
+        return;
+      }
+      
+      // Step 2: Pass the email body to the server action
+      const result = await processSingleEmail(emailBody);
+
       if (result.success && result.data) {
         setExtractedInfo(result.data);
       } else {
-        setError(result.error || "Could not process email. Make sure an email from this address exists.");
+        setError(result.error || "Could not process email.");
       }
     } catch (e: any) {
       setError(e.message || 'An unexpected error occurred.');
