@@ -75,7 +75,8 @@ function gapiLoaded() {
     }).then(function () {
         gapiInited = true;
         if (gisInited) {
-            tokenClient?.requestAccessToken({ prompt: 'consent' });
+            // This now happens in the gisInitialized callback after the user clicks sign in.
+            // It's better to request the token upon user action.
         }
     }).catch(function(err) {
         console.error('Error initializing GAPI client:', err);
@@ -90,37 +91,50 @@ function gisInitalized() {
             callback: (resp) => {
                 if (resp.error) {
                     console.error("Token client error:", resp.error);
-                    throw (resp);
+                    // Do not throw here as it can be an unhandled promise rejection
+                    // Let the UI handle the error state if needed.
+                    return;
                 }
-                // Callback doesn't need to do anything here, access token is now available.
+                 // On successful token, we can now use the GAPI client.
+                 console.log("Authentication successful.");
             },
         });
         gisInited = true;
-        if (gapiInited) {
-            tokenClient?.requestAccessToken({ prompt: 'consent' });
-        }
+        // Now that GIS is initialized, we can prompt for login if gapi is also ready.
+        // This is typically triggered by user interaction (handleSignIn)
     } else {
         console.error('Google Identity Services not initialized');
     }
 }
 
-// Kicks off the sign-in and authorization process.
-export function handleSignIn() {
-    // Load GAPI script
-    const gapiScript = document.createElement('script');
-    gapiScript.src = 'https://apis.google.com/js/api.js';
-    gapiScript.async = true;
-    gapiScript.defer = true;
-    gapiScript.onload = () => gapi.load('client', gapiLoaded);
-    document.body.appendChild(gapiScript);
-
-    // Load GIS script
-    const gisScript = document.createElement('script');
-    gisScript.src = 'https://accounts.google.com/gsi/client';
-    gisScript.async = true;
-    gisScript.defer = true;
-    gisScript.onload = gisInitalized;
-    document.body.appendChild(gisScript);
+function loadScript(src: string, onLoad: () => void) {
+    if (document.querySelector(`script[src="${src}"]`)) {
+        onLoad();
+        return;
+    }
+    const script = document.createElement('script');
+    script.src = src;
+    script.async = true;
+    script.defer = true;
+    script.onload = onLoad;
+    document.body.appendChild(script);
 }
 
-    
+// Kicks off the sign-in and authorization process.
+export function handleSignIn() {
+    loadScript('https://apis.google.com/js/api.js', () => {
+        gapi.load('client', gapiLoaded);
+    });
+
+    loadScript('https://accounts.google.com/gsi/client', () => {
+        gisInitalized();
+        // The real token request is triggered here, after initialization
+        // and upon user's click.
+        if (tokenClient) {
+            // Prompt the user to select an account and grant access.
+            tokenClient.requestAccessToken({ prompt: 'consent' });
+        } else {
+            console.error("Token client is not ready. GIS might not have been initialized correctly.");
+        }
+    });
+}
