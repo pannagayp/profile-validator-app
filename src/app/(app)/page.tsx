@@ -12,7 +12,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
-import { Loader2, Mail, User, Building, Linkedin, Phone, Inbox } from 'lucide-react';
+import { Loader2, Mail, User, Building, Linkedin, Phone, Inbox, RefreshCw } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { formatDistanceToNow } from 'date-fns';
@@ -41,8 +41,7 @@ export default function HomePage() {
   const [isLoadingEmails, setIsLoadingEmails] = useState(false);
 
 
-  const onAuthSuccess = async () => {
-    setIsAuthenticated(true);
+  const fetchEmails = async () => {
     setIsLoadingEmails(true);
     try {
       const emails = await getRecentEmails();
@@ -52,6 +51,11 @@ export default function HomePage() {
     } finally {
       setIsLoadingEmails(false);
     }
+  };
+
+  const onAuthSuccess = () => {
+    setIsAuthenticated(true);
+    fetchEmails();
   }
 
   useEffect(() => {
@@ -112,16 +116,23 @@ export default function HomePage() {
             {isAuthenticated && (
                 <Card>
                     <CardHeader>
-                        <CardTitle className="flex items-center gap-2">
-                            <Inbox />
-                            Recent Emails
-                        </CardTitle>
-                        <CardDescription>
-                            Here are your 5 most recent emails.
-                        </CardDescription>
+                        <div className="flex justify-between items-center">
+                            <div className="space-y-1">
+                                <CardTitle className="flex items-center gap-2">
+                                    <Inbox />
+                                    Recent Emails
+                                </CardTitle>
+                                <CardDescription>
+                                    Here are your 5 most recent emails.
+                                </CardDescription>
+                            </div>
+                            <Button variant="ghost" size="icon" onClick={fetchEmails} disabled={isLoadingEmails}>
+                                <RefreshCw className={`h-4 w-4 ${isLoadingEmails ? 'animate-spin' : ''}`} />
+                            </Button>
+                        </div>
                     </CardHeader>
                     <CardContent>
-                        {isLoadingEmails ? (
+                        {isLoadingEmails && recentEmails.length === 0 ? (
                              <div className="flex items-center justify-center h-48">
                                 <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
                             </div>
