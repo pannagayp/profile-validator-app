@@ -1,3 +1,4 @@
+
 'use server';
 /**
  * @fileOverview A flow to verify an extracted profile.
@@ -7,8 +8,9 @@
 
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
-import { addDocumentNonBlocking, initializeFirebase } from '@/firebase';
+import { initializeFirebase } from '@/firebase';
 import { collection, serverTimestamp } from 'firebase/firestore';
+import { addDocument } from '@/firebase/server/db';
 
 // Define the input schema based on the ExtractedProfile type
 const ExtractedProfileSchema = z.object({
@@ -125,7 +127,7 @@ const verifyProfileFlow = ai.defineFlow(
       timestamp: serverTimestamp(),
     };
 
-    addDocumentNonBlocking(verificationCol, result);
+    await addDocument(verificationCol, result);
 
     // 4. If verification passes, write to profiles-verified and send email
     if (domainMatch || deliverability === 'DELIVERABLE') {
@@ -138,7 +140,7 @@ const verifyProfileFlow = ai.defineFlow(
             verification_details: reason,
             timestamp: serverTimestamp(),
         };
-        addDocumentNonBlocking(verifiedProfilesCol, verifiedProfileData);
+        await addDocument(verifiedProfilesCol, verifiedProfileData);
         await sendConfirmationEmail(profile, reason);
     }
   }

@@ -6,11 +6,11 @@ import { extractContactInfo } from '@/ai/flows/extract-contact-info';
 import { getLatestEmailBody } from '@/services/gmail';
 import { summarizeValidationFailures } from '@/ai/flows/summarize-validation-failures';
 import { addProfile, getValidationErrors, clearValidationErrors, updateProfileStatus } from '@/lib/db';
-import { addDocumentNonBlocking } from '@/firebase';
 import { collection, serverTimestamp } from 'firebase/firestore';
 import { initializeFirebase } from '@/firebase';
 import { revalidatePath } from 'next/cache';
 import { verifyExtractedProfile } from '@/ai/flows/verify-profile';
+import { addDocument } from '@/firebase/server/db';
 
 const emailSchema = z.string().email();
 
@@ -32,7 +32,7 @@ export async function processSingleEmail(emailBody: string): Promise<{ success: 
     // Save the raw email to Firestore for auditing
     const { firestore } = initializeFirebase();
     const rawEmailsCol = collection(firestore, 'raw-emails-test');
-    addDocumentNonBlocking(rawEmailsCol, {
+    await addDocument(rawEmailsCol, {
         emailBody: emailBody,
         timestamp: serverTimestamp()
     });
@@ -41,7 +41,7 @@ export async function processSingleEmail(emailBody: string): Promise<{ success: 
     
     // Save extracted profile to Firestore
     const extractedProfilesCol = collection(firestore, 'extracted-profiles-test');
-    const docRef = await addDocumentNonBlocking(extractedProfilesCol, {
+    const docRef = await addDocument(extractedProfilesCol, {
         ...extractedData,
         extraction_status: extractedData.name && extractedData.email && extractedData.company ? 'complete' : 'partial',
         raw_text: emailBody,
@@ -58,6 +58,7 @@ export async function processSingleEmail(emailBody: string): Promise<{ success: 
         extraction_status: (extractedData.name && extractedData.email && extractedData.company ? 'complete' : 'partial') as 'complete' | 'partial',
         raw_text: emailBody
       };
+      // We don't await this so it runs in the background
       verifyExtractedProfile(profileForVerification);
     }
     
@@ -137,7 +138,7 @@ export async function approveProfile(profiles: ExtractedProfileForApproval[]) {
               verification_details: "Manually approved by admin",
               timestamp: serverTimestamp(),
           };
-          addDocumentNonBlocking(verifiedProfilesCol, verifiedProfileData);
+          await addDocument(verifiedProfilesCol, verifiedProfileData);
       }
       
       // In a real app with Firestore, you would also delete the profiles
@@ -147,6 +148,7 @@ export async function approveProfile(profiles: ExtractedProfileForApproval[]) {
       revalidatePath('/admin');
       return { success: true };
     } catch(e: any) {
+        console.error("Error in approveProfile action: ", e);
         return { success: false, error: e.message || 'An unknown error occurred during approval.'}
     }
 }
