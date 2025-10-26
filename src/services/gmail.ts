@@ -101,9 +101,10 @@ export function handleSignOut() {
   if (token !== null) {
     window.google.accounts.oauth2.revoke(token.access_token, () => {
       console.log('Token revoked');
+      window.gapi.client.setToken(null);
+      // Reload the page to reset the entire application state
+      window.location.reload(); 
     });
-    window.gapi.client.setToken(null);
-    window.location.reload(); // Reload to reset state
   }
 }
 

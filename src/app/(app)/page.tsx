@@ -89,9 +89,8 @@ export default function HomePage() {
         }
     }, () => {
         // This is the success callback after authentication.
-        setIsAuthenticated(true);
-
-        handleRefresh();
+        // Force a reload to ensure the new auth state is picked up.
+        window.location.reload();
     });
   }, []);
 
