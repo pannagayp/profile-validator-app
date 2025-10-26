@@ -45,11 +45,11 @@ async function searchApifyLinkedIn(linkedinUrl: string, companyName: string): Pr
     }
     
     const client = new ApifyClient({ token: apifyToken });
-    const ACTOR_ID = "apimaestro/linkedin-profile-batch-scraper-no-cookies-required";
+    const ACTOR_ID = "apidojo/linkedin-profile-scraper"; // Switched to a different actor
 
     // Prepare the Actor input.
     const actorInput = {
-        "profileUrls": [linkedinUrl]
+        "startUrls": [{ "url": linkedinUrl }]
     };
     
     console.log(`Starting Apify actor '${ACTOR_ID}' with input:`, actorInput);
@@ -72,22 +72,23 @@ async function searchApifyLinkedIn(linkedinUrl: string, companyName: string): Pr
     if (items && items.length > 0) {
         const firstResult: any = items[0];
 
-        const profileUrl = firstResult.linkedinUrl || firstResult.url;
+        const profileUrl = firstResult.url;
         
         // Search through all experiences for a company match
         const experiences = firstResult.experience || [];
         for (const job of experiences) {
-            if (job.company && job.company.toLowerCase().includes(companyName.toLowerCase())) {
-                console.log(`[Apify Result] Found matching company '${job.company}' for profile: ${profileUrl}`);
+            // apidojo actor uses companyName field
+            if (job.companyName && job.companyName.toLowerCase().includes(companyName.toLowerCase())) {
+                console.log(`[Apify Result] Found matching company '${job.companyName}' for profile: ${profileUrl}`);
                 return {
                     profileUrl,
-                    company: job.company, // Return the matched company name
+                    company: job.companyName, // Return the matched company name
                 };
             }
         }
 
         // If no match was found in the loop
-        const latestCompany = experiences.length > 0 ? experiences[0].company : 'N/A';
+        const latestCompany = experiences.length > 0 ? experiences[0].companyName : 'N/A';
         console.warn(`[Apify Result] No company match found. Provided: ${companyName}, Latest on LinkedIn: ${latestCompany}`);
         return {
             profileUrl,
