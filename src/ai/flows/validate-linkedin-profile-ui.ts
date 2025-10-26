@@ -11,6 +11,24 @@ import { ai } from '@/ai/genkit';
 import { LinkedInValidationInputSchema, LinkedInValidationOutputSchema, type LinkedInValidationInput, type LinkedInValidationOutput } from '@/ai/schemas';
 import { ApifyClient } from 'apify-client';
 
+/**
+ * Extracts the username part from a LinkedIn URL.
+ * e.g., "https://www.linkedin.com/in/pannaga-y-p-8397072b4/" -> "pannaga-y-p-8397072b4"
+ */
+function getUsernameFromUrl(url: string): string | null {
+    try {
+        const path = new URL(url).pathname;
+        const parts = path.split('/').filter(p => p); // filter out empty strings
+        if (parts.length > 0 && parts[0] === 'in') {
+            return parts[1];
+        }
+        return null;
+    } catch (e) {
+        console.error("Could not parse LinkedIn URL", e);
+        return null;
+    }
+}
+
 
 /**
  * Apify LinkedIn Search Function
@@ -28,9 +46,14 @@ async function searchApifyLinkedIn(linkedinUrl: string, companyName: string): Pr
     const client = new ApifyClient({ token: apifyToken });
     const ACTOR_ID = "apimaestro/linkedin-profile-batch-scraper-no-cookies-required";
 
-    // Prepare the Actor input.
+    const username = getUsernameFromUrl(linkedinUrl);
+    if (!username) {
+        throw new Error(`Could not extract a valid username from the LinkedIn URL: ${linkedinUrl}`);
+    }
+
+    // Prepare the Actor input based on the provided format.
     const actorInput = {
-        "linkedinUrls": [linkedinUrl]
+        "usernames": [username]
     };
 
     console.log(`Starting Apify actor '${ACTOR_ID}' with input:`, actorInput);
@@ -51,19 +74,20 @@ async function searchApifyLinkedIn(linkedinUrl: string, companyName: string): Pr
 
     // Process the results to find the best match.
     if (items && items.length > 0) {
-        const firstResult: any = items[0];
-
-        // Handle placeholder data issue
-        if (firstResult.company === 'YouTube') {
-            console.warn('[Apify Result] Actor returned placeholder "YouTube" company. Treating as not found.');
+        const resultData: any = items[0]; // The output is a single object in the dataset
+        const profileData = resultData?.results?.[username];
+        
+        if (!profileData) {
+            console.warn(`[Apify Result] No 'results' found for username '${username}' in the returned data.`);
             return null;
         }
 
-        const profileUrl = firstResult.url;
+        const profileUrl = `https://www.linkedin.com/in/${username}`;
         
         // Search through all experiences for a company match
-        const experiences = firstResult.experiences || [];
+        const experiences = profileData.experience || [];
         for (const job of experiences) {
+            // The new output format uses `company` and `title`
             if (job.company && job.company.toLowerCase().includes(companyName.toLowerCase())) {
                 console.log(`[Apify Result] Found matching company '${job.company}' for profile: ${profileUrl}`);
                 return {
@@ -107,7 +131,7 @@ const validateLinkedInProfileFlow = ai.defineFlow(
         const linkedInProfile = await searchApifyLinkedIn(linkedinUrl, company);
 
         if (!linkedInProfile) {
-            result = { status: 'profile_not_found', message: `No valid LinkedIn profile found for ${linkedinUrl}. The actor may have failed or returned placeholder data.` };
+            result = { status: 'profile_not_found', message: `No valid LinkedIn profile found for ${linkedinUrl}. The actor may have failed or returned no data.` };
         } else {
             // Compare company names (case-insensitive)
             if (linkedInProfile.company.toLowerCase().includes(company.toLowerCase())) {
