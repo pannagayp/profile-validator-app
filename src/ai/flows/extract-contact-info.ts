@@ -7,6 +7,7 @@
  */
 
 import { ai } from '@/ai/genkit';
+import { googleAI } from '@genkit-ai/google-genai';
 import { z } from 'genkit';
 
 const ExtractContactInfoInputSchema = z.object({
@@ -29,6 +30,7 @@ export async function extractContactInfo(input: { emailBody: string }): Promise<
 
 const prompt = ai.definePrompt({
   name: 'extractContactInfoPrompt',
+  model: googleAI.model('gemini-1.5-flash'),
   input: { schema: ExtractContactInfoInputSchema },
   output: { schema: ExtractedContactInfoOutputSchema },
   prompt: `You are an expert at extracting structured contact information from unstructured email text.
@@ -57,5 +59,3 @@ const extractContactInfoFlow = ai.defineFlow(
     return output!;
   }
 );
-
-    
