@@ -6,12 +6,11 @@ import { summarizeValidationFailures } from '@/ai/flows/summarize-validation-fai
 import { getValidationErrors, clearValidationErrors } from '@/lib/db';
 import { revalidatePath } from 'next/cache';
 import { processEmailFlow } from '@/ai/flows/process-email';
-import { addDocument } from '@/firebase/server/db';
-import { collection, serverTimestamp } from 'firebase/firestore';
 import { initializeFirebase } from '@/firebase';
 import { verifyExtractedProfile } from '@/ai/flows/verify-profile';
 import { ExtractedContactInfo, LinkedInValidationInputSchema, type LinkedInValidationOutput } from '@/ai/schemas';
 import { validateLinkedInProfileForUi } from '@/ai/flows/validate-linkedin-profile-ui';
+import { collection, serverTimestamp, addDoc } from 'firebase/firestore';
 
 
 const processEmailSchema = z.object({
@@ -82,7 +81,7 @@ export async function approveProfile(profiles: ExtractedProfile[]): Promise<{ su
 
   try {
     for (const profile of profiles) {
-      await addDocument(verifiedProfilesCol, {
+      await addDoc(verifiedProfilesCol, {
         name: profile.name,
         email: profile.email,
         company: profile.company,

@@ -9,8 +9,7 @@
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
 import { initializeFirebase } from '@/firebase';
-import { collection, serverTimestamp } from 'firebase/firestore';
-import { addDocument } from '@/firebase/server/db';
+import { collection, serverTimestamp, addDoc } from 'firebase/firestore';
 
 // Input schema for the LinkedIn validation flow
 const LinkedInValidationInputSchema = z.object({
@@ -123,7 +122,7 @@ const validateLinkedInProfileFlow = ai.defineFlow(
             timestamp: serverTimestamp(),
         };
 
-        await addDocument(linkedinVerificationsCol, verificationData);
+        await addDoc(linkedinVerificationsCol, verificationData);
         console.log(`Stored LinkedIn validation result for profile ID: ${profileId}`);
 
     } catch (dbError: any) {

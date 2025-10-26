@@ -9,8 +9,7 @@
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
 import { initializeFirebase } from '@/firebase';
-import { collection, serverTimestamp } from 'firebase/firestore';
-import { addDocument } from '@/firebase/server/db';
+import { collection, serverTimestamp, addDoc } from 'firebase/firestore';
 import { validateLinkedInProfile } from './validate-linkedin-profile';
 
 // Define the input schema based on the ExtractedProfile type
@@ -146,7 +145,7 @@ const verifyProfileFlow = ai.defineFlow(
       timestamp: serverTimestamp(),
     };
 
-    await addDocument(verificationCol, result);
+    await addDoc(verificationCol, result);
 
     // 5. If verification passes, write to profiles-verified and send email
     if (score > 0.6) { // Adjusted threshold to account for LinkedIn bonus
@@ -159,7 +158,7 @@ const verifyProfileFlow = ai.defineFlow(
             verification_details: reason,
             timestamp: serverTimestamp(),
         };
-        await addDocument(verifiedProfilesCol, verifiedProfileData);
+        await addDoc(verifiedProfilesCol, verifiedProfileData);
         await sendConfirmationEmail(profile, reason);
     }
   }

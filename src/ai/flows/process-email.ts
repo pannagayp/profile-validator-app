@@ -10,8 +10,7 @@ import { z } from 'genkit';
 import { extractContactInfo } from './extract-contact-info';
 import { ExtractedContactInfoOutputSchema } from '@/ai/schemas';
 import { initializeFirebase } from '@/firebase';
-import { collection, serverTimestamp } from 'firebase/firestore';
-import { addDocument } from '@/firebase/server/db';
+import { collection, serverTimestamp, addDoc } from 'firebase/firestore';
 import { verifyExtractedProfile } from './verify-profile';
 
 const ProcessEmailInputSchema = z.object({
@@ -28,7 +27,7 @@ export const processEmailFlow = ai.defineFlow(
     // 1. Save raw email to Firestore
     const { firestore } = initializeFirebase();
     const rawEmailsCol = collection(firestore, 'raw-emails');
-    const emailDoc = await addDocument(rawEmailsCol, {
+    const emailDoc = await addDoc(rawEmailsCol, {
       emailBody,
       timestamp: serverTimestamp(),
     });
@@ -49,7 +48,7 @@ export const processEmailFlow = ai.defineFlow(
         createdAt: serverTimestamp(),
       };
       
-      const profileDoc = await addDocument(extractedProfilesCol, profileData);
+      const profileDoc = await addDoc(extractedProfilesCol, profileData);
       console.log(`Stored extracted profile with ID: ${profileDoc.id}`);
 
       // 4. Trigger the verification flow asynchronously (don't wait for it to finish)
@@ -57,9 +56,9 @@ export const processEmailFlow = ai.defineFlow(
         verifyExtractedProfile({
             id: profileDoc.id,
             name: profileData.name,
-            email: profileData.email || undefined,
+            email: extractedInfo.email || undefined,
             company: profileData.company,
-            linkedin: profileData.linkedin || undefined,
+            linkedin: extractedInfo.linkedin || undefined,
             extraction_status: profileData.extraction_status as 'complete' | 'partial',
             raw_text: emailBody,
         });
