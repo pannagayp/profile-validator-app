@@ -7,7 +7,6 @@ import { getValidationErrors, clearValidationErrors } from '@/lib/db';
 import { revalidatePath } from 'next/cache';
 import { processEmailFlow } from '@/ai/flows/process-email';
 import { initializeFirebase } from '@/firebase';
-import { verifyExtractedProfile } from '@/ai/flows/verify-profile';
 import { ExtractedContactInfo, LinkedInValidationInputSchema, type LinkedInValidationOutput } from '@/ai/schemas';
 import { validateLinkedInProfileForUi } from '@/ai/flows/validate-linkedin-profile-ui';
 import { collection, serverTimestamp, addDoc } from 'firebase/firestore';
@@ -38,7 +37,7 @@ export async function processSingleEmail(input: ProcessEmailInput): Promise<{ su
       return { success: false, error: "Could not extract any contact information from the email." };
     }
 
-    revalidatePath('/admin');
+    // No revalidation needed as we are not writing to the DB
     return { success: true, data: extractedData };
 
   } catch (e: any) {
