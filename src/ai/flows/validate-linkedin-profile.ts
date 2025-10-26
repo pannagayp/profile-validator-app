@@ -18,6 +18,7 @@ const LinkedInValidationInputSchema = z.object({
   email: z.string().email().describe('The email of the user.'),
   company: z.string().describe('The company the user claims to work for.'),
   profileId: z.string().describe('The ID of the original extracted profile document.'),
+  linkedinUrl: z.string().url().describe('The LinkedIn profile URL.')
 });
 export type LinkedInValidationInput = z.infer<typeof LinkedInValidationInputSchema>;
 
@@ -36,8 +37,8 @@ export type LinkedInValidationOutput = z.infer<typeof LinkedInValidationOutputSc
  *  This function now attempts a real API call to Apify.
  * ===================================================================================
  */
-async function searchApifyLinkedIn(email: string, name: string): Promise<{ profileUrl: string; company: string } | null> {
-    console.log(`[Apify Search] Attempting to find profile for: ${name} (${email})`);
+async function searchApifyLinkedIn(linkedinUrl: string, companyName: string): Promise<{ profileUrl: string; company: string } | null> {
+    console.log(`[Apify Search] Attempting to find profile for: ${linkedinUrl}`);
     const apifyToken = process.env.APIFY_API_TOKEN;
     if (!apifyToken) {
         throw new Error("APIFY_API_TOKEN is not set in the .env file.");
@@ -47,9 +48,8 @@ async function searchApifyLinkedIn(email: string, name: string): Promise<{ profi
     const ACTOR_ID = "apimaestro/linkedin-profile-batch-scraper-no-cookies-required";
 
     // Prepare the Actor input.
-    // NOTE: This input structure is a GUESS. You MUST check the documentation for your Actor.
     const actorInput = {
-        "profileUrls": [`https://www.linkedin.com/in/${name.replace(/\s+/g, '-')}`]
+        "profileUrls": [linkedinUrl]
     };
     
     console.log(`Starting Apify actor '${ACTOR_ID}' with input:`, actorInput);
@@ -100,13 +100,13 @@ const validateLinkedInProfileFlow = ai.defineFlow(
     inputSchema: LinkedInValidationInputSchema,
     outputSchema: LinkedInValidationOutputSchema,
   },
-  async ({ name, email, company, profileId }) => {
+  async ({ name, email, company, profileId, linkedinUrl }) => {
     
     let result: LinkedInValidationOutput;
 
     try {
         // We now call the function intended for Apify.
-        const linkedInProfile = await searchApifyLinkedIn(email, name);
+        const linkedInProfile = await searchApifyLinkedIn(linkedinUrl, company);
 
         if (!linkedInProfile) {
             result = { status: 'profile_not_found', message: `No LinkedIn profile found for ${name}.` };

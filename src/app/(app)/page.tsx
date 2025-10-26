@@ -26,7 +26,7 @@ type EmailFormValues = z.infer<typeof emailFormSchema>;
 
 
 const linkedinFormSchema = z.object({
-  name: z.string().min(1, 'Name is required.'),
+  linkedinUrl: z.string().url({ message: 'Please enter a valid LinkedIn URL.' }),
   company: z.string().min(1, 'Company is required.'),
 });
 type LinkedInFormValues = z.infer<typeof linkedinFormSchema>;
@@ -72,7 +72,7 @@ export default function HomePage() {
 
   const linkedinForm = useForm<LinkedInFormValues>({
     resolver: zodResolver(linkedinFormSchema),
-    defaultValues: { name: '', company: '' },
+    defaultValues: { linkedinUrl: '', company: '' },
   });
 
 
@@ -89,9 +89,9 @@ export default function HomePage() {
 
   // When contact info is extracted, pre-fill the LinkedIn form
   useEffect(() => {
-    if (extractedInfo?.name && extractedInfo?.company) {
+    if (extractedInfo?.linkedin && extractedInfo?.company) {
       linkedinForm.reset({
-        name: extractedInfo.name,
+        linkedinUrl: extractedInfo.linkedin,
         company: extractedInfo.company,
       });
     }
@@ -305,17 +305,17 @@ export default function HomePage() {
                <form onSubmit={linkedinForm.handleSubmit(onLinkedInSubmit)} className="flex flex-col h-full">
                  <CardHeader>
                    <CardTitle>LinkedIn Profile Validation</CardTitle>
-                   <CardDescription>Enter a name and company to validate against the mock LinkedIn service.</CardDescription>
+                   <CardDescription>Enter a profile URL and company to validate against the LinkedIn service.</CardDescription>
                  </CardHeader>
                  <CardContent className="flex-grow space-y-4">
                     <FormField
                      control={linkedinForm.control}
-                     name="name"
+                     name="linkedinUrl"
                      render={({ field }) => (
                        <FormItem>
-                         <FormLabel>Full Name</FormLabel>
+                         <FormLabel>LinkedIn Profile URL</FormLabel>
                          <FormControl>
-                           <Input placeholder="Jane Doe" {...field} />
+                           <Input placeholder="https://www.linkedin.com/in/username" {...field} />
                          </FormControl>
                          <FormMessage />
                        </FormItem>
@@ -424,8 +424,7 @@ export default function HomePage() {
                   ))}
                 </ul>
               ) : (
-                <p className="text-center text-muted-foreground">No recent emails found.</p>
-              )}
+                <p className="text-center text-muted-foreground">No recent emails found.</p>              )}
             </CardContent>
             <CardFooter>
                  <Button variant="outline" onClick={handleSignOut} className="w-full">Sign Out of Gmail</Button>

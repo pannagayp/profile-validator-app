@@ -18,7 +18,7 @@ export type ExtractedContactInfo = z.infer<typeof ExtractedContactInfoOutputSche
 
 // Input schema for the UI-facing LinkedIn validation flow
 export const LinkedInValidationInputSchema = z.object({
-  name: z.string().describe('The full name of the user.'),
+  linkedinUrl: z.string().url('Please enter a valid LinkedIn URL.'),
   company: z.string().describe('The company the user claims to work for.'),
 });
 export type LinkedInValidationInput = z.infer<typeof LinkedInValidationInputSchema>;
