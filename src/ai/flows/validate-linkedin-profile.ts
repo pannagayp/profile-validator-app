@@ -37,9 +37,9 @@ export type LinkedInValidationOutput = z.infer<typeof LinkedInValidationOutputSc
 function getUsernameFromUrl(url: string): string | null {
     try {
         const path = new URL(url).pathname;
-        const parts = path.split('/').filter(p => p); // filter out empty strings
-        if (parts.length > 0 && parts[0] === 'in') {
-            return parts[1];
+        const parts = path.split('/').filter(p => p && p !== 'in'); // filter out empty strings and 'in'
+        if (parts.length > 0) {
+            return parts[0];
         }
         return null;
     } catch (e) {
