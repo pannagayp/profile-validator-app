@@ -32,23 +32,7 @@ const linkedinFormSchema = z.object({
 });
 type LinkedInFormValues = z.infer<typeof linkedinFormSchema>;
 
-const getStatusConfig = (status: any) => {
-  switch (status) {
-      case 'verified':
-          return { variant: 'default', icon: <CheckCircle className="mr-1.5 h-3 w-3"/>, label: 'Verified' };
-      case 'company_mismatch':
-          return { variant: 'secondary', icon: <AlertCircle className="mr-1.5 h-3 w-3"/>, label: 'Mismatch' };
-      case 'profile_not_found':
-          return { variant: 'secondary', icon: <XCircle className="mr-1.5 h-3 w-3"/>, label: 'Not Found' };
-      case 'api_limit_reached':
-          return { variant: 'destructive', icon: <AlertCircle className="mr-1.5 h-3 w-3"/>, label: 'API Limit' };
-      case 'error':
-          return { variant: 'destructive', icon: <XCircle className="mr-1.5 h-3 w-3"/>, label: 'Error' };
-      default:
-          return { variant: 'secondary', icon: <AlertCircle className="mr-1.5 h-3 w-3"/>, label: 'Debug' };
-  }
-};
-
+type ValidationStatus = 'idle' | 'validated' | 'not_found';
 
 export default function HomePage() {
   const [extractedInfo, setExtractedInfo] = useState<ExtractedContactInfo | null>(null);
@@ -62,6 +46,7 @@ export default function HomePage() {
   const [isLinkedInValidating, setIsLinkedInValidating] = useState(false);
   const [linkedInResult, setLinkedInResult] = useState<LinkedInValidationOutput | null>(null);
   const [linkedInError, setLinkedInError] = useState<string | null>(null);
+  const [companyValidationStatus, setCompanyValidationStatus] = useState<ValidationStatus>('idle');
 
 
   const { toast } = useToast();
@@ -97,6 +82,32 @@ export default function HomePage() {
       });
     }
   }, [extractedInfo, linkedinForm]);
+
+  // When LinkedIn result is received, perform the company validation
+  useEffect(() => {
+    if (!linkedInResult || !extractedInfo?.company) {
+      setCompanyValidationStatus('idle');
+      return;
+    }
+
+    // Safely access the first profile result
+    const profileData = Array.isArray(linkedInResult) && linkedInResult.length > 0 ? linkedInResult[0] : null;
+
+    if (!profileData || !Array.isArray(profileData.experience)) {
+      setCompanyValidationStatus('not_found');
+      return;
+    }
+    
+    // Check if the extracted company name exists in any of the experiences
+    const companyNameToValidate = extractedInfo.company.toLowerCase();
+    const isCompanyFound = profileData.experience.some(
+      (exp: any) => exp.company && exp.company.toLowerCase().includes(companyNameToValidate)
+    );
+
+    setCompanyValidationStatus(isCompanyFound ? 'validated' : 'not_found');
+
+  }, [linkedInResult, extractedInfo]);
+
 
   const onConnect = () => {
     handleSignIn();
@@ -161,6 +172,7 @@ export default function HomePage() {
     setIsLinkedInValidating(true);
     setLinkedInResult(null);
     setLinkedInError(null);
+    setCompanyValidationStatus('idle'); // Reset status on new submission
     try {
         const result = await validateProfileOnLinkedIn(data);
         if (result.success && result.data) {
@@ -337,7 +349,7 @@ export default function HomePage() {
                    />
                  </CardContent>
                  <CardFooter>
-                   <Button type="submit" disabled={isLinkedInValidating} className="w-full">
+                   <Button type="submit" disabled={isLinkedInValidating || !extractedInfo} className="w-full">
                      {isLinkedInValidating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ShieldCheck className="mr-2 h-4 w-4" />}
                      Validate Profile
                    </Button>
@@ -351,7 +363,7 @@ export default function HomePage() {
                <CardTitle>Validation Result</CardTitle>
                <CardDescription>The raw JSON response from the validation service will appear here.</CardDescription>
              </CardHeader>
-             <CardContent className="h-[250px]">
+             <CardContent className="h-[250px] flex flex-col">
                 {isLinkedInValidating && (
                     <div className="flex flex-col h-full items-center justify-center gap-2">
                         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -367,11 +379,23 @@ export default function HomePage() {
                     </div>
                 )}
                 {linkedInResult && (
-                  <ScrollArea className="h-full w-full rounded-md border">
-                     <pre className="text-xs p-4">
-                        {JSON.stringify(linkedInResult, null, 2)}
-                     </pre>
-                  </ScrollArea>
+                  <div className='flex flex-col gap-4 flex-grow'>
+                    {companyValidationStatus === 'validated' && (
+                        <Badge variant="default" className="w-fit">
+                          <CheckCircle className="mr-1.5 h-3 w-3" /> Company Name Validated via LinkedIn
+                        </Badge>
+                    )}
+                    {companyValidationStatus === 'not_found' && (
+                        <Badge variant="destructive" className="w-fit">
+                          <XCircle className="mr-1.5 h-3 w-3" /> Company Name Not Found in Profile
+                        </Badge>
+                    )}
+                    <ScrollArea className="h-full w-full rounded-md border flex-grow">
+                        <pre className="text-xs p-4">
+                          {JSON.stringify(linkedInResult, null, 2)}
+                        </pre>
+                    </ScrollArea>
+                  </div>
                 )}
              </CardContent>
            </Card>
