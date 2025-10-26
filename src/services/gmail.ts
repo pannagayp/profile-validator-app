@@ -9,9 +9,12 @@ const SCOPES = 'https://www.googleapis.com/auth/gmail.readonly';
 let tokenClient: google.accounts.oauth2.TokenClient | null = null;
 let gapiInited = false;
 let gisInited = false;
+let gapiLoadedPromise: Promise<void> | null = null;
+let gisLoadedPromise: Promise<void> | null = null;
 
 // This function is the main public API for this module.
 export async function getLatestEmailBody(fromEmail: string): Promise<string | null> {
+    await initialize();
     // Ensure GAPI is ready.
     if (!gapi || !gapi.client) {
         throw new Error("GAPI client not loaded.");
@@ -67,6 +70,22 @@ export async function getLatestEmailBody(fromEmail: string): Promise<string | nu
     }
 }
 
+function loadScript(src: string): Promise<void> {
+    return new Promise((resolve, reject) => {
+        if (document.querySelector(`script[src="${src}"]`)) {
+            resolve();
+            return;
+        }
+        const script = document.createElement('script');
+        script.src = src;
+        script.async = true;
+        script.defer = true;
+        script.onload = () => resolve();
+        script.onerror = () => reject(new Error(`Failed to load script: ${src}`));
+        document.body.appendChild(script);
+    });
+}
+
 
 function gapiLoaded() {
     gapi.client.init({
@@ -74,10 +93,6 @@ function gapiLoaded() {
         discoveryDocs: [DISCOVERY_DOC],
     }).then(function () {
         gapiInited = true;
-        if (gisInited) {
-            // This now happens in the gisInitialized callback after the user clicks sign in.
-            // It's better to request the token upon user action.
-        }
     }).catch(function(err) {
         console.error('Error initializing GAPI client:', err);
     });
@@ -91,50 +106,80 @@ function gisInitalized() {
             callback: (resp) => {
                 if (resp.error) {
                     console.error("Token client error:", resp.error);
-                    // Do not throw here as it can be an unhandled promise rejection
-                    // Let the UI handle the error state if needed.
                     return;
                 }
-                 // On successful token, we can now use the GAPI client.
                  console.log("Authentication successful.");
             },
         });
         gisInited = true;
-        // Now that GIS is initialized, we can prompt for login if gapi is also ready.
-        // This is typically triggered by user interaction (handleSignIn)
     } else {
         console.error('Google Identity Services not initialized');
     }
 }
 
-function loadScript(src: string, onLoad: () => void) {
-    if (document.querySelector(`script[src="${src}"]`)) {
-        onLoad();
-        return;
+
+function initializeGapiClient(): Promise<void> {
+    if (!gapiLoadedPromise) {
+        gapiLoadedPromise = new Promise((resolve, reject) => {
+            loadScript('https://apis.google.com/js/api.js')
+                .then(() => {
+                    gapi.load('client', () => {
+                        gapi.client.init({
+                            apiKey: API_KEY,
+                            discoveryDocs: [DISCOVERY_DOC],
+                        }).then(() => {
+                            gapiInited = true;
+                            resolve();
+                        }).catch(reject);
+                    });
+                })
+                .catch(reject);
+        });
     }
-    const script = document.createElement('script');
-    script.src = src;
-    script.async = true;
-    script.defer = true;
-    script.onload = onLoad;
-    document.body.appendChild(script);
+    return gapiLoadedPromise;
 }
 
-// Kicks off the sign-in and authorization process.
-export function handleSignIn() {
-    loadScript('https://apis.google.com/js/api.js', () => {
-        gapi.load('client', gapiLoaded);
-    });
+function initializeGisClient(): Promise<void> {
+    if (!gisLoadedPromise) {
+        gisLoadedPromise = new Promise((resolve, reject) => {
+            loadScript('https://accounts.google.com/gsi/client')
+                .then(() => {
+                    tokenClient = window.google.accounts.oauth2.initTokenClient({
+                        client_id: CLIENT_ID,
+                        scope: SCOPES,
+                        callback: (resp) => {
+                            if (resp.error) {
+                                console.error("Token client error:", resp.error);
+                            } else {
+                                console.log("Authentication successful.");
+                            }
+                        },
+                    });
+                    gisInited = true;
+                    resolve();
+                })
+                .catch(reject);
+        });
+    }
+    return gisLoadedPromise;
+}
 
-    loadScript('https://accounts.google.com/gsi/client', () => {
-        gisInitalized();
-        // The real token request is triggered here, after initialization
-        // and upon user's click.
-        if (tokenClient) {
-            // Prompt the user to select an account and grant access.
-            tokenClient.requestAccessToken({ prompt: 'consent' });
-        } else {
-            console.error("Token client is not ready. GIS might not have been initialized correctly.");
-        }
-    });
+async function initialize() {
+    if (gapiInited && gisInited) {
+        return;
+    }
+    await Promise.all([initializeGapiClient(), initializeGisClient()]);
+}
+
+export async function handleSignIn() {
+    console.log(
+      'Please ensure this origin is listed in your Authorized JavaScript origins in the Google Cloud Console:',
+      window.location.origin
+    );
+    await initialize();
+    if (tokenClient) {
+        tokenClient.requestAccessToken({ prompt: 'consent' });
+    } else {
+        console.error("Token client is not ready. GIS might not have been initialized correctly.");
+    }
 }
