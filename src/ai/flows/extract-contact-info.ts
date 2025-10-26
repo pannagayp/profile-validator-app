@@ -22,7 +22,7 @@ export async function extractContactInfo(input: { emailBody: string }): Promise<
 
 const prompt = ai.definePrompt({
   name: 'extractContactInfoPrompt',
-  model: googleAI.model('gemini-1.5-flash-latest'),
+  model: googleAI.model('gemini-1.5-flash'),
   input: { schema: ExtractContactInfoInputSchema },
   output: { schema: ExtractedContactInfoOutputSchema },
   prompt: `You are an expert at extracting structured contact information from unstructured email text.
