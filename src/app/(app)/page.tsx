@@ -199,10 +199,10 @@ export default function HomePage() {
       <div className="w-full max-w-6xl mx-auto grid gap-8">
         <header className="text-center">
           <h1 className="font-headline text-4xl md:text-5xl font-bold tracking-tighter text-foreground">
-            Email Contact Extractor
+            Profile Validator
           </h1>
           <p className="text-muted-foreground mt-2 max-w-2xl mx-auto">
-            Connect your Gmail to find a client's latest email, and use AI to extract their key information.
+            Extract contact details from emails and validate profiles against LinkedIn.
           </p>
         </header>
 
@@ -364,7 +364,7 @@ export default function HomePage() {
              </Form>
            </Card>
  
-           <Card>
+            <Card>
              <CardHeader>
                <CardTitle>Validation Result</CardTitle>
                <CardDescription>The raw JSON response from the validation service will appear here.</CardDescription>
@@ -446,5 +446,3 @@ export default function HomePage() {
     </div>
   );
 }
-
-    
