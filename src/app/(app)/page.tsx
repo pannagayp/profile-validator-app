@@ -5,23 +5,49 @@ import { useState, useEffect } from 'react';
 import { useForm, SubmitHandler } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { processSingleEmail } from '@/app/actions';
+import { processSingleEmail, validateProfileOnLinkedIn } from '@/app/actions';
 import { initialize, handleSignIn, handleSignOut, isUserAuthenticated, getRecentEmails, getLatestEmailBody, type RecentEmail } from '@/services/gmail';
-import type { ExtractedContactInfo } from '@/ai/schemas';
+import type { ExtractedContactInfo, LinkedInValidationOutput } from '@/ai/schemas';
 
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
-import { Loader2, User, Building, Linkedin, Phone, RefreshCw, Mail } from 'lucide-react';
+import { Loader2, User, Building, Linkedin, Phone, RefreshCw, Mail, ShieldCheck, AlertCircle, CheckCircle, XCircle } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
+import { Badge } from '@/components/ui/badge';
 
-const formSchema = z.object({
+const emailFormSchema = z.object({
   email: z.string().email({ message: 'Please enter a valid email address.' }),
 });
 
-type FormValues = z.infer<typeof formSchema>;
+type EmailFormValues = z.infer<typeof emailFormSchema>;
+
+
+const linkedinFormSchema = z.object({
+  name: z.string().min(1, 'Name is required.'),
+  company: z.string().min(1, 'Company is required.'),
+});
+type LinkedInFormValues = z.infer<typeof linkedinFormSchema>;
+
+const getStatusConfig = (status: LinkedInValidationOutput['status']) => {
+  switch (status) {
+      case 'verified':
+          return { variant: 'default', icon: <CheckCircle className="mr-1.5 h-3 w-3"/>, label: 'Verified' };
+      case 'company_mismatch':
+          return { variant: 'secondary', icon: <AlertCircle className="mr-1.5 h-3 w-3"/>, label: 'Mismatch' };
+      case 'profile_not_found':
+          return { variant: 'secondary', icon: <XCircle className="mr-1.5 h-3 w-3"/>, label: 'Not Found' };
+      case 'api_limit_reached':
+          return { variant: 'destructive', icon: <AlertCircle className="mr-1.5 h-3 w-3"/>, label: 'API Limit' };
+      case 'error':
+          return { variant: 'destructive', icon: <XCircle className="mr-1.5 h-3 w-3"/>, label: 'Error' };
+      default:
+          return { variant: 'secondary', icon: <AlertCircle className="mr-1.5 h-3 w-3"/>, label: 'Unknown' };
+  }
+};
+
 
 export default function HomePage() {
   const [extractedInfo, setExtractedInfo] = useState<ExtractedContactInfo | null>(null);
@@ -31,19 +57,28 @@ export default function HomePage() {
   const [recentEmails, setRecentEmails] = useState<RecentEmail[]>([]);
   const [isFetchingEmails, setIsFetchingEmails] = useState(false);
   const [isGisLoaded, setIsGisLoaded] = useState(false);
+
+  const [isLinkedInValidating, setIsLinkedInValidating] = useState(false);
+  const [linkedInResult, setLinkedInResult] = useState<LinkedInValidationOutput | null>(null);
+  const [linkedInError, setLinkedInError] = useState<string | null>(null);
+
+
   const { toast } = useToast();
 
-  const form = useForm<FormValues>({
-    resolver: zodResolver(formSchema),
-    defaultValues: {
-      email: '',
-    },
+  const emailForm = useForm<EmailFormValues>({
+    resolver: zodResolver(emailFormSchema),
+    defaultValues: { email: '' },
   });
+
+  const linkedinForm = useForm<LinkedInFormValues>({
+    resolver: zodResolver(linkedinFormSchema),
+    defaultValues: { name: '', company: '' },
+  });
+
 
   useEffect(() => {
     initialize(() => {
       setIsGisLoaded(true);
-      // Check initial auth state once GIS is loaded
       const authenticated = isUserAuthenticated();
       setIsAuthenticated(authenticated);
       if (authenticated) {
@@ -52,9 +87,18 @@ export default function HomePage() {
     });
   }, []);
 
+  // When contact info is extracted, pre-fill the LinkedIn form
+  useEffect(() => {
+    if (extractedInfo?.name && extractedInfo?.company) {
+      linkedinForm.reset({
+        name: extractedInfo.name,
+        company: extractedInfo.company,
+      });
+    }
+  }, [extractedInfo, linkedinForm]);
+
   const onConnect = () => {
     handleSignIn();
-    // A bit of a hack, but we need to poll to see when the user is authenticated
     const interval = setInterval(() => {
       const authenticated = isUserAuthenticated();
       if (authenticated) {
@@ -82,7 +126,7 @@ export default function HomePage() {
   };
 
 
-  const onSubmit: SubmitHandler<FormValues> = async (data) => {
+  const onEmailSubmit: SubmitHandler<EmailFormValues> = async (data) => {
     setIsProcessing(true);
     setExtractedInfo(null);
     setError(null);
@@ -91,14 +135,12 @@ export default function HomePage() {
         throw new Error("Please connect with Gmail first.");
       }
 
-      // 1. Fetch email body on the client
       const emailBody = await getLatestEmailBody(data.email);
 
       if (!emailBody) {
         throw new Error(`No recent email found from ${data.email}.`);
       }
 
-      // 2. Pass the email body to the server action
       const result = await processSingleEmail({ emailBody: emailBody, senderEmail: data.email });
 
       if (result.success && result.data) {
@@ -112,6 +154,26 @@ export default function HomePage() {
       setIsProcessing(false);
     }
   };
+
+
+  const onLinkedInSubmit: SubmitHandler<LinkedInFormValues> = async (data) => {
+    setIsLinkedInValidating(true);
+    setLinkedInResult(null);
+    setLinkedInError(null);
+    try {
+        const result = await validateProfileOnLinkedIn(data);
+        if (result.success && result.data) {
+            setLinkedInResult(result.data);
+        } else {
+            setLinkedInError(result.error || "An unknown validation error occurred.");
+        }
+    } catch (e: any) {
+        setLinkedInError(e.message || 'An unexpected error occurred.');
+    } finally {
+        setIsLinkedInValidating(false);
+    }
+  };
+
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
@@ -143,15 +205,15 @@ export default function HomePage() {
         {isAuthenticated && (
            <div className="grid gap-8 md:grid-cols-2">
            <Card>
-             <Form {...form}>
-               <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col h-full">
+             <Form {...emailForm}>
+               <form onSubmit={emailForm.handleSubmit(onEmailSubmit)} className="flex flex-col h-full">
                  <CardHeader>
                    <CardTitle>Extract Contact Information</CardTitle>
                    <CardDescription>Enter an email to find and process the latest email from that sender.</CardDescription>
                  </CardHeader>
                  <CardContent className="flex-grow">
                    <FormField
-                     control={form.control}
+                     control={emailForm.control}
                      name="email"
                      render={({ field }) => (
                        <FormItem>
@@ -231,6 +293,105 @@ export default function HomePage() {
                    </div>
                  </div>
                )}
+             </CardContent>
+           </Card>
+          </div>
+        )}
+
+        {isAuthenticated && (
+           <div className="grid gap-8 md:grid-cols-2">
+           <Card>
+             <Form {...linkedinForm}>
+               <form onSubmit={linkedinForm.handleSubmit(onLinkedInSubmit)} className="flex flex-col h-full">
+                 <CardHeader>
+                   <CardTitle>LinkedIn Profile Validation</CardTitle>
+                   <CardDescription>Enter a name and company to validate against the mock LinkedIn service.</CardDescription>
+                 </CardHeader>
+                 <CardContent className="flex-grow space-y-4">
+                    <FormField
+                     control={linkedinForm.control}
+                     name="name"
+                     render={({ field }) => (
+                       <FormItem>
+                         <FormLabel>Full Name</FormLabel>
+                         <FormControl>
+                           <Input placeholder="Jane Doe" {...field} />
+                         </FormControl>
+                         <FormMessage />
+                       </FormItem>
+                     )}
+                   />
+                    <FormField
+                     control={linkedinForm.control}
+                     name="company"
+                     render={({ field }) => (
+                       <FormItem>
+                         <FormLabel>Company Name</FormLabel>
+                         <FormControl>
+                           <Input placeholder="ExampleCorp" {...field} />
+                         </FormControl>
+                         <FormMessage />
+                       </FormItem>
+                     )}
+                   />
+                 </CardContent>
+                 <CardFooter>
+                   <Button type="submit" disabled={isLinkedInValidating} className="w-full">
+                     {isLinkedInValidating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ShieldCheck className="mr-2 h-4 w-4" />}
+                     Validate Profile
+                   </Button>
+                 </CardFooter>
+               </form>
+             </Form>
+           </Card>
+ 
+           <Card>
+             <CardHeader>
+               <CardTitle>Validation Result</CardTitle>
+               <CardDescription>The result of the LinkedIn validation will appear here.</CardDescription>
+             </CardHeader>
+             <CardContent className="h-[250px] flex items-center justify-center">
+                {isLinkedInValidating && (
+                    <div className="flex flex-col items-center gap-2">
+                        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                        <p className="text-muted-foreground text-sm">Validating...</p>
+                    </div>
+                )}
+                {linkedInError && (
+                    <div className="text-destructive text-sm font-medium text-center">{linkedInError}</div>
+                )}
+                {!isLinkedInValidating && !linkedInError && !linkedInResult && (
+                    <div className="text-center text-muted-foreground">
+                        <p>Awaiting validation...</p>
+                    </div>
+                )}
+                {linkedInResult && (
+                  <div className="w-full space-y-4">
+                    <div>
+                      <p className="text-sm text-muted-foreground">Status</p>
+                      <Badge variant={getStatusConfig(linkedInResult.status).variant} className="mt-1">
+                          {getStatusConfig(linkedInResult.status).icon}
+                          {getStatusConfig(linkedInResult.status).label}
+                      </Badge>
+                    </div>
+                    <Separator/>
+                     <div>
+                      <p className="text-sm text-muted-foreground">Message</p>
+                      <p className="font-medium">{linkedInResult.message}</p>
+                    </div>
+                    {linkedInResult.linkedInProfileUrl && (
+                      <>
+                        <Separator/>
+                        <div>
+                          <p className="text-sm text-muted-foreground">LinkedIn Profile</p>
+                          <a href={linkedInResult.linkedInProfileUrl} target="_blank" rel="noopener noreferrer" className="font-medium text-primary hover:underline break-all">
+                            {linkedInResult.linkedInProfileUrl}
+                          </a>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                )}
              </CardContent>
            </Card>
           </div>

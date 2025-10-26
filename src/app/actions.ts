@@ -10,7 +10,8 @@ import { addDocument } from '@/firebase/server/db';
 import { collection, serverTimestamp } from 'firebase/firestore';
 import { initializeFirebase } from '@/firebase';
 import { verifyExtractedProfile } from '@/ai/flows/verify-profile';
-import { ExtractedContactInfo } from '@/ai/schemas';
+import { ExtractedContactInfo, LinkedInValidationInputSchema, type LinkedInValidationOutput } from '@/ai/schemas';
+import { validateLinkedInProfileForUi } from '@/ai/flows/validate-linkedin-profile-ui';
 
 
 const processEmailSchema = z.object({
@@ -96,4 +97,23 @@ export async function approveProfile(profiles: ExtractedProfile[]): Promise<{ su
     console.error("Failed to approve profiles", e);
     return { success: false, error: e.message };
   }
+}
+
+
+type LinkedInValidationInput = z.infer<typeof LinkedInValidationInputSchema>;
+
+
+export async function validateProfileOnLinkedIn(input: LinkedInValidationInput): Promise<{ success: boolean, data?: LinkedInValidationOutput, error?: string}> {
+    const parsedInput = LinkedInValidationInputSchema.safeParse(input);
+    if (!parsedInput.success) {
+        return { success: false, error: parsedInput.error.errors.map(e => e.message).join(', ') };
+    }
+
+    try {
+        const result = await validateLinkedInProfileForUi(parsedInput.data);
+        return { success: true, data: result };
+    } catch (e: any) {
+        console.error("Error validating LinkedIn profile action:", e);
+        return { success: false, error: e.message || "An unexpected error occurred." };
+    }
 }
