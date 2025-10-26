@@ -14,7 +14,6 @@ let gisLoadedPromise: Promise<void> | null = null;
 
 // This function is the main public API for this module.
 export async function getLatestEmailBody(fromEmail: string): Promise<string | null> {
-    await initialize();
     // Ensure GAPI is ready.
     if (!gapi || !gapi.client) {
         throw new Error("GAPI client not loaded.");
@@ -86,38 +85,6 @@ function loadScript(src: string): Promise<void> {
     });
 }
 
-
-function gapiLoaded() {
-    gapi.client.init({
-        apiKey: API_KEY,
-        discoveryDocs: [DISCOVERY_DOC],
-    }).then(function () {
-        gapiInited = true;
-    }).catch(function(err) {
-        console.error('Error initializing GAPI client:', err);
-    });
-}
-
-function gisInitalized() {
-    if (window.google && window.google.accounts && window.google.accounts.oauth2) {
-        tokenClient = window.google.accounts.oauth2.initTokenClient({
-            client_id: CLIENT_ID,
-            scope: SCOPES,
-            callback: (resp) => {
-                if (resp.error) {
-                    console.error("Token client error:", resp.error);
-                    return;
-                }
-                 console.log("Authentication successful.");
-            },
-        });
-        gisInited = true;
-    } else {
-        console.error('Google Identity Services not initialized');
-    }
-}
-
-
 function initializeGapiClient(): Promise<void> {
     if (!gapiLoadedPromise) {
         gapiLoadedPromise = new Promise((resolve, reject) => {
@@ -150,9 +117,12 @@ function initializeGisClient(): Promise<void> {
                         callback: (resp) => {
                             if (resp.error) {
                                 console.error("Token client error:", resp.error);
-                            } else {
-                                console.log("Authentication successful.");
+                                return;
                             }
+                            if (gapi && gapi.client) {
+                                gapi.client.setToken({ access_token: resp.access_token });
+                            }
+                             console.log("Authentication successful and token set.");
                         },
                     });
                     gisInited = true;
@@ -177,15 +147,6 @@ export function handleSignIn() {
         tokenClient.requestAccessToken({ prompt: 'consent' });
     } else {
         // This can happen if the GIS script hasn't loaded when the user clicks.
-        // We can try to initialize again, and then prompt the user to click again.
         console.error("Token client is not ready. GIS might not have been initialized correctly.");
-        initialize().then(() => {
-            if (tokenClient) {
-                tokenClient.requestAccessToken({ prompt: 'consent' });
-            } else {
-                alert("Gmail connection is not yet ready. Please try again in a moment.");
-            }
-        });
     }
 }
-
