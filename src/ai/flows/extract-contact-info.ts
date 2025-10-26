@@ -33,6 +33,7 @@ export async function extractContactInfo(input: { emailBody: string }): Promise<
 const prompt = ai.definePrompt({
   name: 'extractContactInfoPrompt',
   tools: [contactInfoTool],
+  model: 'gemini-pro',
   prompt: `You are an expert at extracting contact information from unstructured email text.
 Examine the email body provided. Find the full name, company, designation (job title), phone number, and LinkedIn Profile URL for the person who sent the email or is the main subject of the email signature.
 Then, call the contactInfoTool with the information you have found.
