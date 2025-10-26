@@ -89,8 +89,9 @@ export default function HomePage() {
         }
     }, () => {
         // This is the success callback after authentication.
-        // Force a reload to ensure the new auth state is picked up.
-        window.location.reload();
+        // It's used to update the UI state.
+        setIsAuthenticated(true);
+        handleRefresh();
     });
   }, []);
 
@@ -203,9 +204,9 @@ export default function HomePage() {
               <CardDescription>You need to authorize the app to read your Gmail inbox.</CardDescription>
             </CardHeader>
             <CardFooter>
-              <Button onClick={onConnect} className="w-full" disabled={!isGisLoaded}>
-                { !isGisLoaded ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Mail className="mr-2" /> }
-                { !isGisLoaded ? 'Initializing...' : 'Connect with Gmail' }
+              <Button onClick={onConnect} className="w-full" disabled={!isGapiAndGisReady()}>
+                { !isGapiAndGisReady() ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Mail className="mr-2" /> }
+                { !isGapiAndGisReady() ? 'Initializing...' : 'Connect with Gmail' }
               </Button>
             </CardFooter>
           </Card>
