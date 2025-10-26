@@ -30,11 +30,11 @@ async function mockLinkedInSearch(name: string): Promise<{ profileUrl: string; c
         return null;
     }
 
-    // Simulate a successful find
-    const mockCompany = name.split(' ')[0].replace(/[^a-zA-Z0-9]/g, '') + 'Corp'; // e.g., "John Doe" -> "JohnCorp"
+    // Simulate a successful find with a generic company
+    const mockCompany = 'MockTech Inc.';
     
     // Sanitize name for URL: lowercase, replace spaces/special chars with '-', and remove any other invalid characters.
-    const sanitizedName = name.trim().toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+    const sanitizedName = name.trim().toLowerCase().replace(/[\s\r\n\t_'.]+/g, '-').replace(/[^a-z0-9-]/g, '');
     const mockProfileUrl = `https://www.linkedin.com/in/${sanitizedName}`;
     
     console.log(`[Mock LinkedIn API] Found profile: ${mockProfileUrl} at ${mockCompany}`);
