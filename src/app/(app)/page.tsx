@@ -5,7 +5,7 @@ import { useForm, SubmitHandler } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { processSingleEmail, validateProfileOnLinkedIn } from '@/app/actions';
-import { initialize, handleSignIn, handleSignOut, isUserAuthenticated, getRecentEmails, getLatestEmailBody, type RecentEmail, isGapiAndGisReady } from '@/services/gmail';
+import { initialize, handleSignIn, handleSignOut, isUserAuthenticated, getRecentEmails, getLatestEmailBody, type RecentEmail } from '@/services/gmail';
 import type { ExtractedContactInfo, LinkedInValidationOutput } from '@/ai/schemas';
 
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -203,9 +203,9 @@ export default function HomePage() {
               <CardDescription>You need to authorize the app to read your Gmail inbox.</CardDescription>
             </CardHeader>
             <CardFooter>
-              <Button onClick={onConnect} className="w-full" disabled={!isGapiAndGisReady()}>
-                { !isGapiAndGisReady() ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Mail className="mr-2" /> }
-                { !isGapiAndGisReady() ? 'Initializing...' : 'Connect with Gmail' }
+              <Button onClick={onConnect} className="w-full" disabled={!isGisLoaded}>
+                { !isGisLoaded ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Mail className="mr-2" /> }
+                { !isGisLoaded ? 'Initializing...' : 'Connect with Gmail' }
               </Button>
             </CardFooter>
           </Card>
