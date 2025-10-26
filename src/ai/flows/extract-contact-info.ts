@@ -1,84 +1,61 @@
+
 'use server';
 /**
- * @fileOverview A flow to extract contact information from raw emails.
+ * @fileOverview A flow to extract contact information from an email body.
  *
- * - extractContactInfo - A function that reads emails from Firestore, extracts data, and writes to a new collection.
+ * - extractContactInfo - A function that takes an email body and extracts contact details.
  */
 
-import {ai} from '@/ai/genkit';
-import {z} from 'genkit';
-import {
-  getFirestore,
-  collection,
-  getDocs,
-  serverTimestamp,
-} from 'firebase/firestore';
-import { initializeFirebase, addDocumentNonBlocking } from '@/firebase';
-import { FirestorePermissionError } from '@/firebase/errors';
-import { errorEmitter } from '@/firebase/error-emitter';
+import { ai } from '@/ai/genkit';
+import { z } from 'genkit';
 
-export async function extractContactInfo(): Promise<void> {
-  await extractContactInfoFlow();
+const ExtractContactInfoInputSchema = z.object({
+  emailBody: z.string().describe('The full text content of an email.'),
+});
+
+const ExtractedContactInfoOutputSchema = z.object({
+  name: z.string().nullish().describe('The full name of the contact.'),
+  company: z.string().nullish().describe('The company the contact works for.'),
+  designation: z.string().nullish().describe('The job title or designation of the contact.'),
+  phone: z.string().nullish().describe('The phone number of the contact.'),
+  linkedin: z.string().url().nullish().describe('The LinkedIn profile URL of the contact.'),
+});
+
+export type ExtractedContactInfo = z.infer<typeof ExtractedContactInfoOutputSchema>;
+
+export async function extractContactInfo(input: { emailBody: string }): Promise<ExtractedContactInfo> {
+  return extractContactInfoFlow(input);
 }
+
+const prompt = ai.definePrompt({
+  name: 'extractContactInfoPrompt',
+  input: { schema: ExtractContactInfoInputSchema },
+  output: { schema: ExtractedContactInfoOutputSchema },
+  prompt: `You are an expert at extracting structured contact information from unstructured email text.
+From the email body provided, extract the following details for the person who sent the email or is the main subject of the email signature:
+- Full Name
+- Company
+- Designation (Job Title)
+- Phone Number
+- LinkedIn Profile URL
+
+If a piece of information is not present, leave it null. Do not guess or make up information.
+
+Email Body:
+{{{emailBody}}}
+`,
+});
 
 const extractContactInfoFlow = ai.defineFlow(
   {
     name: 'extractContactInfoFlow',
-    inputSchema: z.void(),
-    outputSchema: z.void(),
+    inputSchema: ExtractContactInfoInputSchema,
+    outputSchema: ExtractedContactInfoOutputSchema,
   },
-  async () => {
-    const { firestore } = initializeFirebase();
-    const rawEmailsCol = collection(firestore, 'raw-emails-test');
-    const extractedProfilesCol = collection(firestore, 'extracted-profiles-test');
-
-    const emailSnapshot = await getDocs(rawEmailsCol).catch(serverError => {
-      const permissionError = new FirestorePermissionError({
-        path: rawEmailsCol.path,
-        operation: 'list',
-      });
-      errorEmitter.emit('permission-error', permissionError);
-      // Re-throw to stop execution if reading emails fails
-      throw permissionError; 
-    });
-
-
-    for (const doc of emailSnapshot.docs) {
-      const emailData = doc.data();
-      const rawText = emailData.emailBody;
-
-      const nameRegex = /Name:\s*(.*)/;
-      const emailRegex = /Email:\s*(.*)/;
-      const companyRegex = /Company:\s*(.*)/;
-      const linkedinRegex = /LinkedIn:\s*(.*)/;
-
-      const nameMatch = rawText.match(nameRegex);
-      const emailMatch = rawText.match(emailRegex);
-      const companyMatch = rawText.match(companyRegex);
-      const linkedinMatch = rawText.match(linkedinRegex);
-
-      const name = nameMatch ? nameMatch[1].trim() : null;
-      const email = emailMatch ? emailMatch[1].trim() : null;
-      const company = companyMatch ? companyMatch[1].trim() : null;
-      const linkedin = linkedinMatch ? linkedinMatch[1].trim() : null;
-
-      const isComplete = name && email && company && linkedin;
-
-      const extractedData: any = {
-        name,
-        email,
-        company,
-        linkedin,
-        extraction_status: isComplete ? 'complete' : 'partial',
-        createdAt: serverTimestamp(),
-      };
-      
-      if (!isComplete) {
-        extractedData.raw_text = rawText;
-      }
-      
-      // Use non-blocking write and let the error handler catch permission issues
-      addDocumentNonBlocking(extractedProfilesCol, extractedData);
-    }
+  async (input) => {
+    const { output } = await prompt(input);
+    return output!;
   }
 );
+
+    
