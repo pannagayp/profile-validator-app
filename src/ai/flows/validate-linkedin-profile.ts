@@ -57,10 +57,16 @@ async function searchApifyLinkedIn(linkedinUrl: string, companyName: string): Pr
     // Run the Actor and wait for it to finish.
     const run = await client.actor(ACTOR_ID).call(actorInput);
 
-    console.log('Apify actor run finished. Fetching results...');
+    console.log(`Apify actor run finished with ID: ${run.id}. Status: ${run.status}. Fetching results...`);
     
     // Fetch the results from the Actor's dataset.
     const { items } = await client.dataset(run.defaultDatasetId).listItems();
+
+    // Log the raw items for debugging purposes
+    console.log(`Apify returned ${items.length} items.`);
+    if (items.length > 0) {
+      console.log('First item from Apify:', JSON.stringify(items[0], null, 2));
+    }
 
     // Process the results to find the best match.
     if (items && items.length > 0) {
@@ -70,7 +76,8 @@ async function searchApifyLinkedIn(linkedinUrl: string, companyName: string): Pr
 
         // This is a guess for the output fields. You will likely need to change these.
         const profileUrl = firstResult.linkedinUrl || firstResult.url;
-        const company = firstResult.company || (firstResult.experience && firstResult.experience[0]?.company);
+        // Company is often nested in the most recent experience
+        const company = firstResult.company || (firstResult.experience && firstResult.experience.length > 0 && firstResult.experience[0]?.company);
 
         if (!profileUrl || !company) {
             console.warn("Could not extract 'profileUrl' or 'company' from Apify result. Check Actor output schema.", firstResult);
@@ -109,9 +116,10 @@ const validateLinkedInProfileFlow = ai.defineFlow(
         const linkedInProfile = await searchApifyLinkedIn(linkedinUrl, company);
 
         if (!linkedInProfile) {
-            result = { status: 'profile_not_found', message: `No LinkedIn profile found for ${name}.` };
+            result = { status: 'profile_not_found', message: `No LinkedIn profile found for ${linkedinUrl}.` };
         } else {
-            if (linkedInProfile.company.toLowerCase() === company.toLowerCase()) {
+            // Use .includes() for a more flexible match (e.g., "Google" vs "Google LLC")
+            if (linkedInProfile.company.toLowerCase().includes(company.toLowerCase())) {
                 result = { 
                     status: 'verified', 
                     message: `Company name matched on LinkedIn profile.`,
