@@ -12,45 +12,69 @@ import { LinkedInValidationInputSchema, LinkedInValidationOutputSchema, type Lin
 
 
 /**
- * MOCK LinkedIn API Client
+ * Apify LinkedIn Search Function
  * ===================================================================================
  *  TO MAKE THIS REAL:
- *  1. Choose a LinkedIn API provider (e.g., Nubela, People Data Labs).
- *  2. Get an API key and add it to your .env file (e.g., LINKEDIN_API_KEY="your_key").
- *  3. Replace the logic in this function with a real API call to your chosen provider.
- *     You would use `fetch` or `axios` to make a request to their endpoint,
- *     passing the name and your API key (`process.env.LINKEDIN_API_KEY`).
- *  4. Parse the response and return an object with `profileUrl` and `company`, or `null`.
+ *  1. You have already chosen Apify and have your API token in the .env file.
+ *  2. You need to find the right Apify Actor for scraping a LinkedIn profile (e.g., "surrey.ai/linkedin-profile-scraper").
+ *  3. Replace the logic in this function with a real API call to Apify.
+ *     The basic flow is:
+ *       a. Start an Actor run with the LinkedIn profile URL or search query.
+ *       b. Wait for the run to finish.
+ *       c. Fetch the results from the Actor's dataset.
+ *  4. Parse the response and return an object with `profileUrl` and `company`.
  * ===================================================================================
  */
-async function mockLinkedInSearch(name: string): Promise<{ profileUrl: string; company: string } | null> {
-    console.log(`[Mock LinkedIn API] Searching for profile with name: ${name}`);
-    console.log(`[Mock LinkedIn API] In a real app, you would use an API key like: ${process.env.LINKEDIN_API_KEY ? 'found' : 'not found'}`);
+async function searchApifyLinkedIn(name: string): Promise<{ profileUrl: string; company: string } | null> {
+    console.log(`[Apify Search] Searching for profile with name: ${name}`);
+    const apifyToken = process.env.APIFY_API_TOKEN;
+    if (!apifyToken) {
+        console.warn("APIFY_API_TOKEN is not set. Using mock data. For a real search, add your Apify token to the .env file.");
+    }
     await new Promise(resolve => setTimeout(resolve, 1500)); // Simulate network delay
 
-    // Simulate API limit reached
-    if (process.env.MOCK_LINKEDIN_API_LIMIT_REACHED === 'true') {
-        throw new Error('LinkedIn API limit reached');
-    }
+    // ============================================================================================
+    // START: REPLACE THIS MOCK LOGIC WITH YOUR REAL APIFY API CALL
+    // ============================================================================================
 
-    // Simulate "profile not found"
+    // You would use `fetch` here to call the Apify API.
+    // This is a simplified example. You'll need to read Apify's documentation.
+    /*
+    const ACTOR_ID = "YOUR_CHOSEN_ACTOR_ID"; // e.g., "surrey.ai/linkedin-profile-scraper"
+    const runResponse = await fetch(`https://api.apify.com/v2/acts/${ACTOR_ID}/runs?token=${apifyToken}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            // The input for your actor, e.g., a search query or profile URL
+            "profileUrls": [`https://www.linkedin.com/in/${name.replace(/\s+/g, '-')}`] // This is a guess!
+        }),
+    });
+    const runData = await runResponse.json();
+    const runId = runData.data.id;
+
+    // You would then need to poll the run until it's finished and fetch the dataset.
+    // This is a complex process and Apify provides client libraries that can simplify this.
+    // For a real implementation, consider using the `apify-client` NPM package.
+    */
+
+    // For now, we will continue to use the mock logic.
+    if (process.env.MOCK_LINKEDIN_API_LIMIT_REACHED === 'true') {
+        throw new Error('Apify API limit reached or task failed');
+    }
     if (name.toLowerCase().includes('unknown')) {
-        console.log('[Mock LinkedIn API] Profile not found.');
         return null;
     }
-
-    // Simulate a successful find with a generic company
     const mockCompany = 'MockTech Inc.';
-    
-    // Sanitize name for URL: lowercase, replace spaces/special chars with '-', and remove any other invalid characters.
     const sanitizedName = name.trim().toLowerCase().replace(/[\s\r\n\t_'.]+/g, '-').replace(/[^a-z0-9-]/g, '');
     const mockProfileUrl = `https://www.linkedin.com/in/${sanitizedName}`;
-    
-    console.log(`[Mock LinkedIn API] Found profile: ${mockProfileUrl} at ${mockCompany}`);
+    console.log(`[Mock Response] Found profile: ${mockProfileUrl} at ${mockCompany}`);
     return {
         profileUrl: mockProfileUrl,
         company: mockCompany,
     };
+    // ============================================================================================
+    // END: REPLACE MOCK LOGIC
+    // ============================================================================================
 }
 
 
@@ -70,7 +94,8 @@ const validateLinkedInProfileFlow = ai.defineFlow(
     let result: LinkedInValidationOutput;
 
     try {
-        const linkedInProfile = await mockLinkedInSearch(name);
+        // We now call the function intended for Apify.
+        const linkedInProfile = await searchApifyLinkedIn(name);
 
         if (!linkedInProfile) {
             result = { status: 'profile_not_found', message: `No LinkedIn profile found for ${name}.` };
@@ -91,7 +116,7 @@ const validateLinkedInProfileFlow = ai.defineFlow(
             }
         }
     } catch (e: any) {
-        if (e.message.includes('LinkedIn API limit reached')) {
+        if (e.message.includes('API limit reached')) {
              result = { status: 'api_limit_reached', message: e.message };
         } else {
             result = { status: 'error', message: `An unexpected error occurred: ${e.message}` };
