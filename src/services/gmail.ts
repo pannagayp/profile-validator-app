@@ -164,22 +164,28 @@ function initializeGisClient(): Promise<void> {
     return gisLoadedPromise;
 }
 
-async function initialize() {
+export async function initialize() {
     if (gapiInited && gisInited) {
         return;
     }
     await Promise.all([initializeGapiClient(), initializeGisClient()]);
 }
 
-export async function handleSignIn() {
-    console.log(
-      'Please ensure this origin is listed in your Authorized JavaScript origins in the Google Cloud Console:',
-      window.location.origin
-    );
-    await initialize();
+export function handleSignIn() {
     if (tokenClient) {
+        // This is the call that opens the popup.
         tokenClient.requestAccessToken({ prompt: 'consent' });
     } else {
+        // This can happen if the GIS script hasn't loaded when the user clicks.
+        // We can try to initialize again, and then prompt the user to click again.
         console.error("Token client is not ready. GIS might not have been initialized correctly.");
+        initialize().then(() => {
+            if (tokenClient) {
+                tokenClient.requestAccessToken({ prompt: 'consent' });
+            } else {
+                alert("Gmail connection is not yet ready. Please try again in a moment.");
+            }
+        });
     }
 }
+

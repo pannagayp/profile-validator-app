@@ -1,12 +1,12 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useForm, SubmitHandler } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { processSingleEmail } from '@/app/actions';
-import { handleSignIn } from '@/services/gmail';
+import { handleSignIn, initialize as initializeGmail } from '@/services/gmail';
 
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -33,6 +33,11 @@ export default function HomePage() {
   const [extractedInfo, setExtractedInfo] = useState<ExtractedInfo | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    // Pre-load the Google API scripts when the component mounts.
+    initializeGmail();
+  }, []);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
