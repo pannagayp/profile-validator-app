@@ -16,16 +16,14 @@ import { LinkedInValidationInputSchema, LinkedInValidationOutputSchema, type Lin
  * ===================================================================================
  *  TO MAKE THIS REAL:
  *  1. You have already chosen Apify and have your API token in the .env file.
- *  2. You need to find the right Apify Actor for scraping a LinkedIn profile (e.g., "surrey.ai/linkedin-profile-scraper").
- *  3. Replace the logic in this function with a real API call to Apify.
- *     The basic flow is:
- *       a. Start an Actor run with the LinkedIn profile URL or search query.
- *       b. Wait for the run to finish.
- *       c. Fetch the results from the Actor's dataset.
- *  4. Parse the response and return an object with `profileUrl` and `company`.
+ *  2. You have provided the Actor ID, which is now in the code below.
+ *  3. UNCOMMENT the `fetch` logic below.
+ *  4. READ the documentation for your chosen Actor (`apimaestro/linkedin-profile-batch-scraper-no-cookies-required`)
+ *     to confirm its exact input and output structure. You may need to adjust the `body` of the
+ *     `fetch` call and how the `results` are parsed.
  * ===================================================================================
  */
-async function searchApifyLinkedIn(name: string): Promise<{ profileUrl: string; company: string } | null> {
+async function searchApifyLinkedIn(name: string, companyName: string): Promise<{ profileUrl: string; company: string } | null> {
     console.log(`[Apify Search] Searching for profile with name: ${name}`);
     const apifyToken = process.env.APIFY_API_TOKEN;
     if (!apifyToken) {
@@ -40,13 +38,14 @@ async function searchApifyLinkedIn(name: string): Promise<{ profileUrl: string; 
     // You would use `fetch` here to call the Apify API.
     // This is a simplified example. You'll need to read Apify's documentation.
     /*
-    const ACTOR_ID = "YOUR_CHOSEN_ACTOR_ID"; // e.g., "surrey.ai/linkedin-profile-scraper"
+    const ACTOR_ID = "apimaestro/linkedin-profile-batch-scraper-no-cookies-required";
     const runResponse = await fetch(`https://api.apify.com/v2/acts/${ACTOR_ID}/runs?token=${apifyToken}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
             // The input for your actor, e.g., a search query or profile URL
-            "profileUrls": [`https://www.linkedin.com/in/${name.replace(/\s+/g, '-')}`] // This is a guess!
+            // This is a guess based on common actor inputs! CHECK THE DOCUMENTATION.
+            "profileUrls": [`https://www.linkedin.com/in/${name.replace(/\s+/g, '-')}`] 
         }),
     });
     const runData = await runResponse.json();
@@ -57,7 +56,8 @@ async function searchApifyLinkedIn(name: string): Promise<{ profileUrl: string; 
     // For a real implementation, consider using the `apify-client` NPM package.
     */
 
-    // For now, we will continue to use the mock logic.
+    // For now, we will continue to use the mock logic so the app doesn't break.
+    // UNCOMMENT the code above and DELETE the mock logic below when you are ready.
     if (process.env.MOCK_LINKEDIN_API_LIMIT_REACHED === 'true') {
         throw new Error('Apify API limit reached or task failed');
     }
@@ -95,7 +95,7 @@ const validateLinkedInProfileFlow = ai.defineFlow(
 
     try {
         // We now call the function intended for Apify.
-        const linkedInProfile = await searchApifyLinkedIn(name);
+        const linkedInProfile = await searchApifyLinkedIn(name, company);
 
         if (!linkedInProfile) {
             result = { status: 'profile_not_found', message: `No LinkedIn profile found for ${name}.` };
