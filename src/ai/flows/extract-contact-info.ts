@@ -7,7 +7,6 @@
  */
 
 import { ai } from '@/ai/genkit';
-import { googleAI } from '@genkit-ai/google-genai';
 import { z } from 'genkit';
 import { ExtractedContactInfo, ExtractedContactInfoOutputSchema } from '@/ai/schemas';
 
@@ -33,7 +32,6 @@ export async function extractContactInfo(input: { emailBody: string }): Promise<
 
 const prompt = ai.definePrompt({
   name: 'extractContactInfoPrompt',
-  model: googleAI.model('gemini-pro'),
   tools: [contactInfoTool],
   prompt: `You are an expert at extracting contact information from unstructured email text.
 Examine the email body provided. Find the full name, company, designation (job title), phone number, and LinkedIn Profile URL for the person who sent the email or is the main subject of the email signature.
