@@ -1,7 +1,7 @@
 import type { Profile } from './types';
 
 type RawEmail = { id: string; emailBody: string; timestamp: string; };
-type ExtractedProfile = { id: string; name?: string; email?: string; company?: string; linkedin?: string; extraction_status: 'complete' | 'partial'; raw_text?: string; };
+type ExtractedProfile = { id: string; name?: string; email?: string; company?: string; linkedin?: string; extraction_status: 'complete' | 'partial'; };
 type VerificationResult = { id: string; profileId: string; score: number; reason: string; domainMatch: boolean; deliverability: 'DELIVERABLE' | 'UNDELIVERABLE' | 'RISKY'; timestamp: string; };
 
 

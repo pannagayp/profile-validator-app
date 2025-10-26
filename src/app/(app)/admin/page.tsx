@@ -4,6 +4,7 @@ import { ExtractedProfilesTable } from './extracted-profiles-table';
 import { VerificationResultsTable } from './verification-results-table';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
+import { ErrorReport } from './error-report';
 
 function TableSkeleton() {
     return (
@@ -63,6 +64,10 @@ export default function AdminPage() {
                 </Suspense>
             </CardContent>
         </Card>
+
+        <Suspense fallback={<TableSkeleton />}>
+            <ErrorReport />
+        </Suspense>
 
       </div>
     </div>

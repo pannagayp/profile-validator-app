@@ -10,6 +10,7 @@ import { addDocumentNonBlocking } from '@/firebase';
 import { collection, serverTimestamp } from 'firebase/firestore';
 import { initializeFirebase } from '@/firebase';
 import { revalidatePath } from 'next/cache';
+import { verifyExtractedProfile } from '@/ai/flows/verify-profile';
 
 const emailSchema = z.string().email();
 
@@ -34,11 +35,33 @@ export async function processSingleEmail(email: string): Promise<{ success: bool
       return { success: false, error: `No email found from ${validation.data}.` };
     }
 
+    // Save the raw email to Firestore for auditing
+    const { firestore } = initializeFirebase();
+    const rawEmailsCol = collection(firestore, 'raw-emails-test');
+    addDocumentNonBlocking(rawEmailsCol, {
+        emailBody: emailBody,
+        timestamp: serverTimestamp()
+    });
+
+
     const extractedData = await extractContactInfo({ emailBody });
     
-    // In a real app, you'd save this to a database.
-    // For now, we just return it.
+    // Save extracted profile to Firestore
+    const extractedProfilesCol = collection(firestore, 'extracted-profiles-test');
+    const docRef = await addDocumentNonBlocking(extractedProfilesCol, {
+        ...extractedData,
+        extraction_status: extractedData.name && extractedData.email && extractedData.company ? 'complete' : 'partial',
+        raw_text: emailBody,
+        createdAt: serverTimestamp()
+    });
 
+    if (docRef) {
+      // Trigger verification flow asynchronously
+      verifyExtractedProfile({ id: docRef.id, ...extractedData, extraction_status: 'partial' }); // partial is default
+    }
+    
+    revalidatePath('/admin');
+    
     return { success: true, data: extractedData };
 
   } catch (e: any) {
@@ -85,12 +108,12 @@ export async function generateSummaryAndClearErrors() {
   
   await clearValidationErrors();
 
-  revalidatePath('/admin/error-report');
+  revalidatePath('/admin');
   
   return { summary: result.summary };
 }
 
-type ExtractedProfile = {
+type ExtractedProfileForApproval = {
   id: string;
   name?: string;
   email?: string;
@@ -99,7 +122,7 @@ type ExtractedProfile = {
   extraction_status: 'complete' | 'partial';
 };
 
-export async function approveProfile(profiles: ExtractedProfile[]) {
+export async function approveProfile(profiles: ExtractedProfileForApproval[]) {
     try {
       const { firestore } = initializeFirebase();
       const verifiedProfilesCol = collection(firestore, 'profiles-verified');
