@@ -1,8 +1,7 @@
 'use client';
 
-import { useMemo } from 'react';
-import { collection, getDocs, orderBy, query } from 'firebase/firestore';
-import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
+import { useState, useEffect } from 'react';
+import { getVerificationResults } from '@/lib/db';
 import {
     Table,
     TableBody,
@@ -15,6 +14,7 @@ import { Badge } from '@/components/ui/badge';
 import { formatDistanceToNow } from 'date-fns';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Skeleton } from '@/components/ui/skeleton';
 import { AlertCircle } from 'lucide-react';
 
 
@@ -25,21 +25,29 @@ type VerificationResult = {
   reason: string;
   domainMatch: boolean;
   deliverability: 'DELIVERABLE' | 'UNDELIVERABLE' | 'RISKY';
-  timestamp: {
-    seconds: number;
-    nanoseconds: number;
-  };
+  timestamp: string;
 };
 
 export function VerificationResultsTable() {
-  const firestore = useFirestore();
+  const [results, setResults] = useState<VerificationResult[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const resultsQuery = useMemoFirebase(() => {
-    if(!firestore) return null;
-    return query(collection(firestore, 'verification-test'), orderBy('timestamp', 'desc'))
-  }, [firestore]);
-
-  const { data: results, isLoading, error } = useCollection<Omit<VerificationResult, 'id'>>(resultsQuery);
+  useEffect(() => {
+    async function fetchResults() {
+      try {
+        setIsLoading(true);
+        setError(null);
+        const data = await getVerificationResults();
+        setResults(data);
+      } catch (e: any) {
+        setError("Failed to load verification results.");
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    fetchResults();
+  }, []);
 
   const getScoreVariant = (score: number) => {
     if (score >= 0.7) return 'default';
@@ -54,7 +62,13 @@ export function VerificationResultsTable() {
   }
 
   if (isLoading) {
-    return <div>Loading verification results...</div>;
+    return (
+        <div className="space-y-4">
+            <Skeleton className="h-10 w-full" />
+            <Skeleton className="h-10 w-full" />
+            <Skeleton className="h-10 w-full" />
+        </div>
+    )
   }
 
   if (error) {
@@ -62,9 +76,7 @@ export function VerificationResultsTable() {
       <Alert variant="destructive">
         <AlertCircle className="h-4 w-4" />
         <AlertTitle>Error</AlertTitle>
-        <AlertDescription>
-          Failed to load verification results. Please check your permissions.
-        </AlertDescription>
+        <AlertDescription>{error}</AlertDescription>
       </Alert>
     );
   }
@@ -99,7 +111,7 @@ export function VerificationResultsTable() {
                 </Badge>
               </TableCell>
               <TableCell className="text-xs">
-                {r.timestamp ? formatDistanceToNow(new Date(r.timestamp.seconds * 1000), { addSuffix: true }) : 'N/A'}
+                {r.timestamp ? formatDistanceToNow(new Date(r.timestamp), { addSuffix: true }) : 'N/A'}
               </TableCell>
             </TableRow>
           ))}

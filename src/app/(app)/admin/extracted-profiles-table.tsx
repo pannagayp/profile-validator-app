@@ -1,9 +1,8 @@
 'use client';
-import { useState, useMemo, useTransition } from 'react';
-import { collection, query, orderBy } from 'firebase/firestore';
-import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
+import { useState, useMemo, useTransition, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { approveProfile } from '@/app/actions';
+import { getExtractedProfiles } from '@/lib/db';
 import {
   Table,
   TableBody,
@@ -18,6 +17,7 @@ import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { CheckCircle2, AlertCircle, Loader2, ShieldCheck } from 'lucide-react';
+import { Skeleton } from '@/components/ui/skeleton';
 
 type ExtractedProfile = {
   id: string;
@@ -29,17 +29,29 @@ type ExtractedProfile = {
 };
 
 export function ExtractedProfilesTable() {
-  const firestore = useFirestore();
   const { toast } = useToast();
   const [isPending, startTransition] = useTransition();
   const [selectedProfiles, setSelectedProfiles] = useState<ExtractedProfile[]>([]);
+  const [profiles, setProfiles] = useState<ExtractedProfile[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const profilesQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
-    return query(collection(firestore, 'extracted-profiles-test'), orderBy('createdAt', 'desc'));
-  }, [firestore]);
+  useEffect(() => {
+    async function fetchProfiles() {
+      try {
+        setIsLoading(true);
+        setError(null);
+        const data = await getExtractedProfiles();
+        setProfiles(data);
+      } catch (e: any) {
+        setError("Failed to load extracted profiles.");
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    fetchProfiles();
+  }, [isPending]);
 
-  const { data: profiles, isLoading, error } = useCollection<Omit<ExtractedProfile, 'id'>>(profilesQuery);
 
   const handleSelect = (profile: ExtractedProfile, checked: boolean | 'indeterminate') => {
     if (checked) {
@@ -60,6 +72,8 @@ export function ExtractedProfilesTable() {
     }
 
     startTransition(async () => {
+        // NOTE: This action still talks to Firestore, which might fail
+        // if write permissions are also an issue.
         const result = await approveProfile(selectedProfiles);
         if (result.success) {
             toast({
@@ -78,7 +92,13 @@ export function ExtractedProfilesTable() {
   }
 
   if (isLoading) {
-    return <div>Loading profiles...</div>;
+    return (
+        <div className="space-y-4">
+            <Skeleton className="h-10 w-full" />
+            <Skeleton className="h-10 w-full" />
+            <Skeleton className="h-10 w-full" />
+        </div>
+    )
   }
 
   if (error) {
@@ -86,9 +106,7 @@ export function ExtractedProfilesTable() {
       <Alert variant="destructive">
         <AlertCircle className="h-4 w-4" />
         <AlertTitle>Error</AlertTitle>
-        <AlertDescription>
-          Failed to load extracted profiles. Please check your permissions.
-        </AlertDescription>
+        <AlertDescription>{error}</AlertDescription>
       </Alert>
     );
   }

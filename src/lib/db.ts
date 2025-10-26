@@ -1,8 +1,17 @@
 import type { Profile } from './types';
 
+type RawEmail = { id: string; emailBody: string; timestamp: string; };
+type ExtractedProfile = { id: string; name?: string; email?: string; company?: string; linkedin?: string; extraction_status: 'complete' | 'partial'; raw_text?: string; };
+type VerificationResult = { id: string; profileId: string; score: number; reason: string; domainMatch: boolean; deliverability: 'DELIVERABLE' | 'UNDELIVERABLE' | 'RISKY'; timestamp: string; };
+
+
 // This is a mock database. In a real application, you would use a service like Firestore.
 let profiles: Profile[] = [];
 let validationFailures: { email: string; error: string; timestamp: string }[] = [];
+let rawEmails: RawEmail[] = [];
+let extractedProfiles: ExtractedProfile[] = [];
+let verificationResults: VerificationResult[] = [];
+
 
 // Simulate some initial data
 if (process.env.NODE_ENV === 'development' && profiles.length === 0) {
@@ -12,6 +21,12 @@ if (process.env.NODE_ENV === 'development' && profiles.length === 0) {
     { id: '3', email: 'user.pending@example.com', status: 'pending', createdAt: new Date(Date.now() - 1000 * 60 * 2).toISOString() }
   );
   validationFailures.push({ email: 'user.invalid@fail.com', error: 'Domain "fail.com" is blocked.', timestamp: new Date().toISOString() });
+  
+  rawEmails.push({ id: 'raw1', emailBody: 'From: test@example.com\nSubject: Portfolio Submission\n\nName: Jane Doe\nEmail: jane.doe@example.com\nCompany: ExampleCorp\nLinkedIn: https://linkedin.com/in/janedoe', timestamp: new Date().toISOString() });
+
+  extractedProfiles.push({ id: 'ext1', name: 'Jane Doe', email: 'jane.doe@example.com', company: 'ExampleCorp', linkedin: 'https://linkedin.com/in/janedoe', extraction_status: 'complete' });
+
+  verificationResults.push({ id: 'ver1', profileId: 'ext1', score: 0.8, reason: 'Email domain matches company name. Email address is valid.', domainMatch: true, deliverability: 'DELIVERABLE', timestamp: new Date().toISOString() });
 }
 
 export async function getProfiles(): Promise<Profile[]> {
@@ -56,4 +71,22 @@ export async function getValidationErrors(): Promise<{ email: string; error: str
 export async function clearValidationErrors(): Promise<void> {
   await new Promise(resolve => setTimeout(resolve, 100));
   validationFailures = [];
+}
+
+
+// --- Mock functions for admin dashboard ---
+
+export async function getRawEmails(): Promise<RawEmail[]> {
+    await new Promise(resolve => setTimeout(resolve, 300));
+    return [...rawEmails].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+}
+
+export async function getExtractedProfiles(): Promise<ExtractedProfile[]> {
+    await new Promise(resolve => setTimeout(resolve, 400));
+    return [...extractedProfiles];
+}
+
+export async function getVerificationResults(): Promise<VerificationResult[]> {
+    await new Promise(resolve => setTimeout(resolve, 500));
+    return [...verificationResults].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 }
