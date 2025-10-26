@@ -29,41 +29,8 @@ export async function processSingleEmail(emailBody: string): Promise<{ success: 
   }
 
   try {
-    // Save the raw email to Firestore for auditing
-    const { firestore } = initializeFirebase();
-    const rawEmailsCol = collection(firestore, 'raw-emails-test');
-    await addDocument(rawEmailsCol, {
-        emailBody: emailBody,
-        timestamp: serverTimestamp()
-    });
-
+    // Just extract the data and return it.
     const extractedData = await extractContactInfo({ emailBody });
-    
-    // Save extracted profile to Firestore
-    const extractedProfilesCol = collection(firestore, 'extracted-profiles-test');
-    const docRef = await addDocument(extractedProfilesCol, {
-        ...extractedData,
-        extraction_status: extractedData.name && extractedData.email && extractedData.company ? 'complete' : 'partial',
-        raw_text: emailBody,
-        createdAt: serverTimestamp()
-    });
-
-    if (docRef) {
-      // Trigger verification flow asynchronously
-      // The schema for verifyExtractedProfile expects an id, which we have from the docRef
-      const profileForVerification = { 
-        id: docRef.id, 
-        ...extractedData, 
-        // Ensure status matches the expected enum, defaulting to partial
-        extraction_status: (extractedData.name && extractedData.email && extractedData.company ? 'complete' : 'partial') as 'complete' | 'partial',
-        raw_text: emailBody
-      };
-      // We don't await this so it runs in the background
-      verifyExtractedProfile(profileForVerification);
-    }
-    
-    revalidatePath('/admin');
-    
     return { success: true, data: extractedData };
 
   } catch (e: any) {
