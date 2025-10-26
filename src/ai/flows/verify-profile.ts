@@ -16,9 +16,9 @@ import { validateLinkedInProfile } from './validate-linkedin-profile';
 // Define the input schema based on the ExtractedProfile type
 const ExtractedProfileSchema = z.object({
   id: z.string(),
-  name: z.string().optional(),
+  name: z.string(),
   email: z.string().optional(),
-  company: z.string().optional(),
+  company: z.string(),
   linkedin: z.string().optional(),
   extraction_status: z.enum(['complete', 'partial']),
   raw_text: z.string().optional(),

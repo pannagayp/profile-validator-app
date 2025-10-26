@@ -9,6 +9,10 @@ import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
 import { extractContactInfo } from './extract-contact-info';
 import { ExtractedContactInfoOutputSchema } from '@/ai/schemas';
+import { initializeFirebase } from '@/firebase';
+import { collection, serverTimestamp } from 'firebase/firestore';
+import { addDocument } from '@/firebase/server/db';
+import { verifyExtractedProfile } from './verify-profile';
 
 const ProcessEmailInputSchema = z.object({
   emailBody: z.string().describe('The full text content of an email.'),
@@ -49,11 +53,17 @@ export const processEmailFlow = ai.defineFlow(
       console.log(`Stored extracted profile with ID: ${profileDoc.id}`);
 
       // 4. Trigger the verification flow asynchronously (don't wait for it to finish)
-      verifyExtractedProfile({
-          id: profileDoc.id,
-          ...extractedInfo,
-          extraction_status: profileData.extraction_status as 'complete' | 'partial',
-      });
+      if (profileData.name && profileData.company) {
+        verifyExtractedProfile({
+            id: profileDoc.id,
+            name: profileData.name,
+            email: profileData.email || undefined,
+            company: profileData.company,
+            linkedin: profileData.linkedin || undefined,
+            extraction_status: profileData.extraction_status as 'complete' | 'partial',
+            raw_text: emailBody,
+        });
+      }
     }
 
     return extractedInfo;
