@@ -70,25 +70,30 @@ async function searchApifyLinkedIn(linkedinUrl: string, companyName: string): Pr
 
     // Process the results to find the best match.
     if (items && items.length > 0) {
-        // The structure of `items[0]` depends entirely on the Actor's output.
-        // You will need to inspect the 'Output' or 'Dataset' tab on the Actor's page in Apify.
         const firstResult: any = items[0];
 
-        // This is a guess for the output fields. You will likely need to change these.
         const profileUrl = firstResult.linkedinUrl || firstResult.url;
-        // Company is often nested in the most recent experience
-        const company = firstResult.company || (firstResult.experience && firstResult.experience.length > 0 && firstResult.experience[0]?.company);
-
-        if (!profileUrl || !company) {
-            console.warn("Could not extract 'profileUrl' or 'company' from Apify result. Check Actor output schema.", firstResult);
-            return null;
+        
+        // Search through all experiences for a company match
+        const experiences = firstResult.experience || [];
+        for (const job of experiences) {
+            if (job.company && job.company.toLowerCase().includes(companyName.toLowerCase())) {
+                console.log(`[Apify Result] Found matching company '${job.company}' for profile: ${profileUrl}`);
+                return {
+                    profileUrl,
+                    company: job.company, // Return the matched company name
+                };
+            }
         }
 
-        console.log(`[Apify Result] Found profile: ${profileUrl} at ${company}`);
+        // If no match was found in the loop
+        const latestCompany = experiences.length > 0 ? experiences[0].company : 'N/A';
+        console.warn(`[Apify Result] No company match found. Provided: ${companyName}, Latest on LinkedIn: ${latestCompany}`);
         return {
             profileUrl,
-            company,
+            company: latestCompany, // Still return the latest company for the mismatch message
         };
+
     } else {
         console.log('Apify actor did not return any items.');
         return null;
@@ -112,7 +117,6 @@ const validateLinkedInProfileFlow = ai.defineFlow(
     let result: LinkedInValidationOutput;
 
     try {
-        // We now call the function intended for Apify.
         const linkedInProfile = await searchApifyLinkedIn(linkedinUrl, company);
 
         if (!linkedInProfile) {
@@ -128,7 +132,7 @@ const validateLinkedInProfileFlow = ai.defineFlow(
             } else {
                 result = { 
                     status: 'company_mismatch', 
-                    message: `Company mismatch. Provided: ${company}, LinkedIn: ${linkedInProfile.company}.`,
+                    message: `Company mismatch. Provided: ${company}, Found on LinkedIn: ${linkedInProfile.company}.`,
                     linkedInProfileUrl: linkedInProfile.profileUrl
                 };
             }
