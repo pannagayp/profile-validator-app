@@ -170,7 +170,7 @@ function initializeGapiClient(): Promise<void> {
     return gapiLoadedPromise;
 }
 
-function initializeGisClient(authCallback: () => void): Promise<void> {
+function initializeGisClient(authCallback: () => void, gisLoadedCallback: () => void): Promise<void> {
     if (!gisLoadedPromise) {
         gisLoadedPromise = new Promise((resolve, reject) => {
             loadScript('https://accounts.google.com/gsi/client')
@@ -191,6 +191,7 @@ function initializeGisClient(authCallback: () => void): Promise<void> {
                         },
                     });
                     gisInited = true;
+                    gisLoadedCallback();
                     resolve();
                 })
                 .catch(reject);
@@ -199,11 +200,12 @@ function initializeGisClient(authCallback: () => void): Promise<void> {
     return gisLoadedPromise;
 }
 
-export async function initialize(authCallback: () => void) {
+export async function initialize(authCallback: () => void, gisLoadedCallback: () => void) {
     if (gapiInited && gisInited) {
+        gisLoadedCallback();
         return;
     }
-    await Promise.all([initializeGapiClient(), initializeGisClient(authCallback)]);
+    await Promise.all([initializeGapiClient(), initializeGisClient(authCallback, gisLoadedCallback)]);
 }
 
 export function handleSignIn() {

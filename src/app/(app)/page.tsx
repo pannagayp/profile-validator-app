@@ -37,6 +37,7 @@ export default function HomePage() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isGisLoaded, setIsGisLoaded] = useState(false);
   const [recentEmails, setRecentEmails] = useState<GmailMessage[]>([]);
   const [isLoadingEmails, setIsLoadingEmails] = useState(false);
 
@@ -59,7 +60,7 @@ export default function HomePage() {
   }
 
   useEffect(() => {
-    initialize(onAuthSuccess);
+    initialize(onAuthSuccess, () => setIsGisLoaded(true));
   }, []);
 
   const form = useForm<FormValues>({
@@ -118,7 +119,7 @@ export default function HomePage() {
                 <CardDescription>Authorize the app to read your Gmail inbox.</CardDescription>
               </CardHeader>
               <CardContent>
-                <Button variant="outline" className="w-full" onClick={attemptSignIn} disabled={isAuthenticated}>
+                <Button variant="outline" className="w-full" onClick={attemptSignIn} disabled={isAuthenticated || !isGisLoaded}>
                   <Mail className="mr-2 h-4 w-4" /> {isAuthenticated ? 'Gmail Connected' : 'Connect with Gmail'}
                 </Button>
               </CardContent>
