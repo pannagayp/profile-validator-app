@@ -17,6 +17,7 @@ import { Loader2, User, Building, Linkedin, Phone, RefreshCw, Mail, ShieldCheck,
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 const emailFormSchema = z.object({
   email: z.string().email({ message: 'Please enter a valid email address.' }),
@@ -31,7 +32,7 @@ const linkedinFormSchema = z.object({
 });
 type LinkedInFormValues = z.infer<typeof linkedinFormSchema>;
 
-const getStatusConfig = (status: LinkedInValidationOutput['status']) => {
+const getStatusConfig = (status: any) => {
   switch (status) {
       case 'verified':
           return { variant: 'default', icon: <CheckCircle className="mr-1.5 h-3 w-3"/>, label: 'Verified' };
@@ -44,7 +45,7 @@ const getStatusConfig = (status: LinkedInValidationOutput['status']) => {
       case 'error':
           return { variant: 'destructive', icon: <XCircle className="mr-1.5 h-3 w-3"/>, label: 'Error' };
       default:
-          return { variant: 'secondary', icon: <AlertCircle className="mr-1.5 h-3 w-3"/>, label: 'Unknown' };
+          return { variant: 'secondary', icon: <AlertCircle className="mr-1.5 h-3 w-3"/>, label: 'Debug' };
   }
 };
 
@@ -348,11 +349,11 @@ export default function HomePage() {
            <Card>
              <CardHeader>
                <CardTitle>Validation Result</CardTitle>
-               <CardDescription>The result of the LinkedIn validation will appear here.</CardDescription>
+               <CardDescription>The raw JSON response from the validation service will appear here.</CardDescription>
              </CardHeader>
-             <CardContent className="h-[250px] flex items-center justify-center">
+             <CardContent className="h-[250px]">
                 {isLinkedInValidating && (
-                    <div className="flex flex-col items-center gap-2">
+                    <div className="flex flex-col h-full items-center justify-center gap-2">
                         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
                         <p className="text-muted-foreground text-sm">Validating...</p>
                     </div>
@@ -361,36 +362,16 @@ export default function HomePage() {
                     <div className="text-destructive text-sm font-medium text-center">{linkedInError}</div>
                 )}
                 {!isLinkedInValidating && !linkedInError && !linkedInResult && (
-                    <div className="text-center text-muted-foreground">
+                    <div className="flex h-full items-center justify-center text-center text-muted-foreground">
                         <p>Awaiting validation...</p>
                     </div>
                 )}
                 {linkedInResult && (
-                  <div className="w-full space-y-4">
-                    <div>
-                      <p className="text-sm text-muted-foreground">Status</p>
-                      <Badge variant={getStatusConfig(linkedInResult.status).variant} className="mt-1">
-                          {getStatusConfig(linkedInResult.status).icon}
-                          {getStatusConfig(linkedInResult.status).label}
-                      </Badge>
-                    </div>
-                    <Separator/>
-                     <div>
-                      <p className="text-sm text-muted-foreground">Message</p>
-                      <p className="font-medium">{linkedInResult.message}</p>
-                    </div>
-                    {linkedInResult.linkedInProfileUrl && (
-                      <>
-                        <Separator/>
-                        <div>
-                          <p className="text-sm text-muted-foreground">LinkedIn Profile</p>
-                          <a href={linkedInResult.linkedInProfileUrl} target="_blank" rel="noopener noreferrer" className="font-medium text-primary hover:underline break-all">
-                            {linkedInResult.linkedInProfileUrl}
-                          </a>
-                        </div>
-                      </>
-                    )}
-                  </div>
+                  <ScrollArea className="h-full w-full rounded-md border">
+                     <pre className="text-xs p-4">
+                        {JSON.stringify(linkedInResult, null, 2)}
+                     </pre>
+                  </ScrollArea>
                 )}
              </CardContent>
            </Card>

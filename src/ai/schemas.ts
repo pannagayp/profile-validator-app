@@ -23,10 +23,6 @@ export const LinkedInValidationInputSchema = z.object({
 });
 export type LinkedInValidationInput = z.infer<typeof LinkedInValidationInputSchema>;
 
-// Output schema for the UI-facing LinkedIn validation flow
-export const LinkedInValidationOutputSchema = z.object({
-  status: z.enum(['verified', 'company_mismatch', 'profile_not_found', 'api_limit_reached', 'error']),
-  message: z.string(),
-  linkedInProfileUrl: z.string().url().optional(),
-});
-export type LinkedInValidationOutput = z.infer<typeof LinkedInValidationOutputSchema>;
+// Output schema for the UI-facing LinkedIn validation flow - changed to any for debugging
+export const LinkedInValidationOutputSchema = z.any();
+export type LinkedInValidationOutput = any;
