@@ -112,6 +112,10 @@ export function isUserAuthenticated(): boolean {
   return token !== null && token.access_token !== null;
 }
 
+export function isGapiAndGisReady(): boolean {
+  return gapiLoaded && gisLoaded;
+}
+
 /**
  * Fetches the body of the latest email from a specific sender.
  * @param senderEmail - The email address of the sender.

@@ -6,7 +6,7 @@ import { useForm, SubmitHandler } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { processSingleEmail, validateProfileOnLinkedIn } from '@/app/actions';
-import { initialize, handleSignIn, handleSignOut, isUserAuthenticated, getRecentEmails, getLatestEmailBody, type RecentEmail } from '@/services/gmail';
+import { initialize, handleSignIn, handleSignOut, isUserAuthenticated, getRecentEmails, getLatestEmailBody, type RecentEmail, isGapiAndGisReady } from '@/services/gmail';
 import type { ExtractedContactInfo, LinkedInValidationOutput } from '@/ai/schemas';
 
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -64,12 +64,18 @@ export default function HomePage() {
 
   useEffect(() => {
     initialize(() => {
-      setIsGisLoaded(true);
-      const authenticated = isUserAuthenticated();
-      setIsAuthenticated(authenticated);
-      if (authenticated) {
-        handleRefresh();
-      }
+      // Use an interval to check until both scripts are ready.
+      const readyInterval = setInterval(() => {
+        if (isGapiAndGisReady()) {
+            setIsGisLoaded(true);
+            const authenticated = isUserAuthenticated();
+            setIsAuthenticated(authenticated);
+            if (authenticated) {
+              handleRefresh();
+            }
+            clearInterval(readyInterval);
+        }
+      }, 100);
     });
   }, []);
 
@@ -391,7 +397,7 @@ export default function HomePage() {
                         </Badge>
                     )}
                     <ScrollArea className="h-full w-full rounded-md border flex-grow">
-                        <pre className="text-xs p-4">
+                        <pre className="text-xs p-4 whitespace-pre-wrap">
                           {JSON.stringify(linkedInResult, null, 2)}
                         </pre>
                     </ScrollArea>
