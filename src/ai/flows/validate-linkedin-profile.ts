@@ -31,11 +31,19 @@ export type LinkedInValidationOutput = z.infer<typeof LinkedInValidationOutputSc
 
 /**
  * MOCK LinkedIn API Client
- * In a real application, this would be a client for a service like Nubela or People Data Labs.
- * You would use process.env.LINKEDIN_API_KEY here.
+ * ===================================================================================
+ *  TO MAKE THIS REAL:
+ *  1. Choose a LinkedIn API provider (e.g., Nubela, People Data Labs).
+ *  2. Get an API key and add it to your .env file (e.g., LINKEDIN_API_KEY="your_key").
+ *  3. Replace the logic in this function with a real API call to your chosen provider.
+ *     You would use `fetch` or `axios` to make a request to their endpoint,
+ *     passing the name/email and your API key (`process.env.LINKEDIN_API_KEY`).
+ *  4. Parse the response and return an object with `profileUrl` and `company`, or `null`.
+ * ===================================================================================
  */
 async function mockLinkedInSearch(email: string, name: string): Promise<{ profileUrl: string; company: string } | null> {
     console.log(`[Mock LinkedIn API] Searching for profile with email: ${email} and name: ${name}`);
+    console.log(`[Mock LinkedIn API] In a real app, you would use an API key like: ${process.env.LINKEDIN_API_KEY ? 'found' : 'not found'}`);
     await new Promise(resolve => setTimeout(resolve, 1500)); // Simulate network delay
 
     // Simulate API limit reached
@@ -95,7 +103,7 @@ const validateLinkedInProfileFlow = ai.defineFlow(
             } else {
                 result = { 
                     status: 'company_mismatch', 
-                    message: `Company mismatch. Email: ${company}, LinkedIn: ${linkedInProfile.company}.`,
+                    message: `Company mismatch. Provided: ${company}, LinkedIn: ${linkedInProfile.company}.`,
                     linkedInProfileUrl: linkedInProfile.profileUrl
                 };
             }
