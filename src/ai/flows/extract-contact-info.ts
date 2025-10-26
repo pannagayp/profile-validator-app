@@ -18,10 +18,11 @@ function extractValue(text: string, regex: RegExp): string | null {
 export async function extractContactInfo(input: { emailBody: string }): Promise<ExtractedContactInfo> {
   const { emailBody } = input;
 
-  // Case-insensitive and multiline regex patterns
-  const nameRegex = /(?:name|full name|full_name)[:\s]+([A-Za-z\s.'-]+)/im;
-  const companyRegex = /(?:company|organization)[:\s]+([A-Za-z0-9\s.,'-]+)/im;
-  const designationRegex = /(?:designation|title|job title|job_title)[:\s]+([A-Za-z\s-]+)/im;
+  // Regex patterns updated to be more specific and stop at newlines or subsequent field keywords.
+  // This prevents them from being too "greedy" and capturing extra text.
+  const nameRegex = /(?:name|full name|full_name)[:\s]+(.+?)(?=\n|Email:|Company:|Phone:|LinkedIn:|$)/im;
+  const companyRegex = /(?:company|organization)[:\s]+(.+?)(?=\n|Email:|Phone:|LinkedIn:|$)/im;
+  const designationRegex = /(?:designation|title|job title|job_title)[:\s]+(.+?)(?=\n|Email:|Company:|Phone:|LinkedIn:|$)/im;
   const phoneRegex = /(?:phone|mobile|tel)[:\s]*([\d\s().+-]+)/im;
   const linkedinRegex = /(?:linkedin)[:\s]+(https?:\/\/(?:www\.)?linkedin\.com\/in\/[A-Za-z0-9_-]+)/im;
   
