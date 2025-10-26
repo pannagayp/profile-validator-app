@@ -369,35 +369,35 @@ export default function HomePage() {
                <CardTitle>Validation Result</CardTitle>
                <CardDescription>The raw JSON response from the validation service will appear here.</CardDescription>
              </CardHeader>
-             <CardContent className="h-[250px] flex flex-col items-center justify-center">
+             <CardContent className="h-[250px] flex flex-col items-stretch">
                 {isLinkedInValidating && (
-                    <div className="flex flex-col h-full items-center justify-center gap-2">
+                    <div className="flex flex-col flex-1 items-center justify-center gap-2">
                         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
                         <p className="text-muted-foreground text-sm">Validating...</p>
                     </div>
                 )}
                 {linkedInError && (
-                    <div className="text-destructive text-sm font-medium text-center">{linkedInError}</div>
+                    <div className="text-destructive text-sm font-medium text-center p-4">{linkedInError}</div>
                 )}
                 {!isLinkedInValidating && !linkedInError && !linkedInResult && (
-                    <div className="flex h-full items-center justify-center text-center text-muted-foreground">
+                    <div className="flex flex-1 items-center justify-center text-center text-muted-foreground">
                         <p>Awaiting validation...</p>
                     </div>
                 )}
                 {linkedInResult && (
                   <div className='flex flex-col gap-4 h-full'>
                     {companyValidationStatus === 'validated' && (
-                        <Badge variant="default" className="w-fit">
+                        <Badge variant="default" className="w-fit self-center">
                           <CheckCircle className="mr-1.5 h-3 w-3" /> Company Name Validated via LinkedIn
                         </Badge>
                     )}
                     {companyValidationStatus === 'not_found' && (
-                        <Badge variant="destructive" className="w-fit">
+                        <Badge variant="destructive" className="w-fit self-center">
                           <XCircle className="mr-1.5 h-3 w-3" /> Company Name Not Found in Profile
                         </Badge>
                     )}
-                    <ScrollArea className="h-full w-full rounded-md border flex-1">
-                        <pre className="text-xs p-4">
+                    <ScrollArea className="flex-1 rounded-md border">
+                        <pre className="text-xs p-4 whitespace-pre-wrap">
                           {JSON.stringify(linkedInResult, null, 2)}
                         </pre>
                     </ScrollArea>
