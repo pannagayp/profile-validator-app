@@ -28,10 +28,8 @@ export async function processSingleEmail(input: ProcessEmailInput): Promise<{ su
     }
 
   try {
-    // The Genkit flow now handles both extraction and saving.
     const extractedData = await processEmailFlow({ 
-        emailBody: parsedInput.data.emailBody,
-        senderEmail: parsedInput.data.senderEmail
+        emailBody: parsedInput.data.emailBody
     });
 
     const hasExtractedData = Object.values(extractedData).some(value => value !== null && value !== undefined);
