@@ -28,18 +28,23 @@ export async function processSingleEmail(input: ProcessEmailInput): Promise<{ su
     }
 
   try {
-    // This server action now simply calls the Genkit flow
+    // The Genkit flow now handles both extraction and saving.
     const extractedData = await processEmailFlow({ 
         emailBody: parsedInput.data.emailBody,
         senderEmail: parsedInput.data.senderEmail
     });
 
-    // For now, just return the data to the client without saving to DB
+    const hasExtractedData = Object.values(extractedData).some(value => value !== null && value !== undefined);
+
+    if (!hasExtractedData) {
+      return { success: false, error: "Could not extract any contact information from the email." };
+    }
+
+    revalidatePath('/admin');
     return { success: true, data: extractedData };
 
   } catch (e: any) {
     console.error("Error processing email action:", e);
-    // The error message might contain instructions for the user (e.g., auth URL)
     return { success: false, error: e.message || "An unexpected error occurred while processing the email." };
   }
 }

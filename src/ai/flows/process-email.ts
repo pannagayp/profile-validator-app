@@ -27,8 +27,35 @@ export const processEmailFlow = ai.defineFlow(
     outputSchema: ExtractedContactInfoOutputSchema,
   },
   async ({ emailBody, senderEmail }) => {
-    // This flow now only does extraction, not saving.
+    // 1. Extract contact information using the regex-based function.
     const extractedInfo = await extractContactInfo({ emailBody });
+
+    // 2. Determine the extraction status.
+    const isComplete = !!(extractedInfo.name && extractedInfo.company && extractedInfo.linkedin);
+    const extractionStatus = isComplete ? 'complete' : 'partial';
+
+    // 3. Save the extracted profile to Firestore.
+    const { firestore } = initializeFirebase();
+    const extractedProfilesCol = collection(firestore, 'extracted-profiles-test');
+    
+    const profileToSave = {
+      ...extractedInfo,
+      email: extractedInfo.email || senderEmail, // Use sender's email if not found in body
+      extraction_status: extractionStatus,
+      raw_text: emailBody,
+      createdAt: serverTimestamp(),
+    };
+
+    const docRef = await addDocument(extractedProfilesCol, profileToSave);
+
+    // 4. Trigger the verification flow for the newly created profile.
+    // This runs in the background and does not block the response.
+    verifyExtractedProfile({
+      id: docRef.id,
+      ...profileToSave
+    });
+
+    // 5. Return the extracted info to the client.
     return extractedInfo;
   }
 );
