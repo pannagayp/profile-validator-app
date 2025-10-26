@@ -2,6 +2,7 @@ import { Suspense } from 'react';
 import { RawEmailsTable } from './raw-emails-table';
 import { ExtractedProfilesTable } from './extracted-profiles-table';
 import { VerificationResultsTable } from './verification-results-table';
+import { LinkedInVerificationTable } from './linkedin-verification-table';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ErrorReport } from './error-report';
@@ -61,6 +62,18 @@ export default function AdminPage() {
             <CardContent>
                 <Suspense fallback={<TableSkeleton />}>
                     <VerificationResultsTable />
+                </Suspense>
+            </CardContent>
+        </Card>
+
+        <Card>
+            <CardHeader>
+                <CardTitle>LinkedIn Verification Results</CardTitle>
+                <CardDescription>Results from the automated LinkedIn profile validation.</CardDescription>
+            </CardHeader>
+            <CardContent>
+                <Suspense fallback={<TableSkeleton />}>
+                    <LinkedInVerificationTable />
                 </Suspense>
             </CardContent>
         </Card>

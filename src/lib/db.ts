@@ -3,6 +3,7 @@ import type { Profile } from './types';
 type RawEmail = { id: string; emailBody: string; timestamp: string; };
 type ExtractedProfile = { id: string; name?: string; email?: string; company?: string; linkedin?: string; extraction_status: 'complete' | 'partial'; };
 type VerificationResult = { id: string; profileId: string; score: number; reason: string; domainMatch: boolean; deliverability: 'DELIVERABLE' | 'UNDELIVERABLE' | 'RISKY'; timestamp: string; };
+type LinkedInVerification = { id: string; extractedProfileId: string; name: string; email: string; inputCompany: string; validationStatus: 'verified' | 'company_mismatch' | 'profile_not_found' | 'api_limit_reached' | 'error'; validationMessage: string; foundLinkedInUrl: string | null; timestamp: string; };
 
 
 // This is a mock database. In a real application, you would use a service like Firestore.
@@ -11,6 +12,7 @@ let validationFailures: { email: string; error: string; timestamp: string }[] = 
 let rawEmails: RawEmail[] = [];
 let extractedProfiles: ExtractedProfile[] = [];
 let verificationResults: VerificationResult[] = [];
+let linkedInVerifications: LinkedInVerification[] = [];
 
 
 // Simulate some initial data
@@ -27,6 +29,8 @@ if (process.env.NODE_ENV === 'development' && profiles.length === 0) {
   extractedProfiles.push({ id: 'ext1', name: 'Jane Doe', email: 'jane.doe@example.com', company: 'ExampleCorp', linkedin: 'https://linkedin.com/in/janedoe', extraction_status: 'complete' });
 
   verificationResults.push({ id: 'ver1', profileId: 'ext1', score: 0.8, reason: 'Email domain matches company name. Email address is valid.', domainMatch: true, deliverability: 'DELIVERABLE', timestamp: new Date().toISOString() });
+
+  linkedInVerifications.push({ id: 'linkedin1', extractedProfileId: 'ext1', name: 'Jane Doe', email: 'jane.doe@example.com', inputCompany: 'ExampleCorp', validationStatus: 'verified', validationMessage: 'Company name matched on LinkedIn profile.', foundLinkedInUrl: 'https://www.linkedin.com/in/jane-doe', timestamp: new Date().toISOString() });
 }
 
 export async function getProfiles(): Promise<Profile[]> {
@@ -89,4 +93,9 @@ export async function getExtractedProfiles(): Promise<ExtractedProfile[]> {
 export async function getVerificationResults(): Promise<VerificationResult[]> {
     await new Promise(resolve => setTimeout(resolve, 500));
     return [...verificationResults].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+}
+
+export async function getLinkedInVerifications(): Promise<LinkedInVerification[]> {
+    await new Promise(resolve => setTimeout(resolve, 600));
+    return [...linkedInVerifications].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 }
