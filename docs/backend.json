@@ -1,3 +1,4 @@
+
 {
   "entities": {
     "ExtractedProfile": {
@@ -117,6 +118,56 @@
         "verification_details",
         "timestamp"
       ]
+    },
+    "LinkedInVerification": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "LinkedInVerification",
+      "type": "object",
+      "description": "Stores the result of a LinkedIn profile validation.",
+      "properties": {
+        "extractedProfileId": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "email": {
+          "type": "string"
+        },
+        "inputCompany": {
+          "type": "string"
+        },
+        "validationStatus": {
+          "type": "string",
+          "enum": [
+            "verified",
+            "company_mismatch",
+            "profile_not_found",
+            "api_limit_reached",
+            "error"
+          ]
+        },
+        "validationMessage": {
+          "type": "string"
+        },
+        "foundLinkedInUrl": {
+          "type": "string",
+          "format": "uri"
+        },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "extractedProfileId",
+        "name",
+        "email",
+        "inputCompany",
+        "validationStatus",
+        "validationMessage",
+        "timestamp"
+      ]
     }
   },
   "auth": {
@@ -155,6 +206,16 @@
             "$ref": "#/backend/entities/VerifiedProfile"
           },
           "description": "Stores profiles that have passed verification."
+        }
+      },
+      {
+        "path": "/linkedin-verifications/{verificationId}",
+        "definition": {
+          "entityName": "LinkedInVerification",
+          "schema": {
+            "$ref": "#/backend/entities/LinkedInVerification"
+          },
+          "description": "Stores the results of LinkedIn profile validations."
         }
       }
     ],

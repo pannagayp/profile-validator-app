@@ -11,6 +11,7 @@ import { z } from 'genkit';
 import { initializeFirebase } from '@/firebase';
 import { collection, serverTimestamp } from 'firebase/firestore';
 import { addDocument } from '@/firebase/server/db';
+import { validateLinkedInProfile } from './validate-linkedin-profile';
 
 // Define the input schema based on the ExtractedProfile type
 const ExtractedProfileSchema = z.object({
@@ -113,8 +114,26 @@ const verifyProfileFlow = ai.defineFlow(
     // Clamp score between 0 and 1
     score = Math.max(0, Math.min(1, score));
 
+    // 3. LinkedIn Profile Validation
+    if (profile.name && profile.email && profile.company) {
+        try {
+            const linkedInResult = await validateLinkedInProfile({
+                name: profile.name,
+                email: profile.email,
+                company: profile.company,
+                profileId: profile.id,
+            });
+            reason += `LinkedIn Validation: ${linkedInResult.status}. `;
+            if (linkedInResult.status === 'verified') {
+                score += 0.2; // Add bonus points for LinkedIn match
+            }
+        } catch (e: any) {
+            reason += `LinkedIn Validation Failed: ${e.message}. `;
+        }
+    }
 
-    // 3. Save results to Firestore
+
+    // 4. Save results to Firestore
     const { firestore } = initializeFirebase();
     const verificationCol = collection(firestore, 'verification-test');
 
@@ -129,8 +148,8 @@ const verifyProfileFlow = ai.defineFlow(
 
     await addDocument(verificationCol, result);
 
-    // 4. If verification passes, write to profiles-verified and send email
-    if (domainMatch || deliverability === 'DELIVERABLE') {
+    // 5. If verification passes, write to profiles-verified and send email
+    if (score > 0.6) { // Adjusted threshold to account for LinkedIn bonus
         const verifiedProfilesCol = collection(firestore, 'profiles-verified');
         const verifiedProfileData = {
             name: profile.name,
