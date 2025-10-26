@@ -13,7 +13,6 @@ import { Input } from '@/components/ui/input';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Separator } from '@/components/ui/separator';
 import { Loader2, Mail } from 'lucide-react';
-import { handleSignIn } from '@/services/gmail';
 
 
 const formSchema = z.object({
@@ -68,15 +67,6 @@ export function ProfileForm() {
                 </FormItem>
               )}
             />
-            <div className="relative flex py-5 items-center">
-              <div className="flex-grow border-t border-muted"></div>
-              <span className="flex-shrink mx-4 text-muted-foreground text-xs">OR</span>
-              <div className="flex-grow border-t border-muted"></div>
-            </div>
-            <Button variant="outline" className="w-full" onClick={handleSignIn}>
-              <Mail className="mr-2 h-4 w-4" /> Connect with Gmail
-            </Button>
-
           </CardContent>
           <CardFooter>
             <Button type="submit" disabled={isSubmitting} className="w-full">

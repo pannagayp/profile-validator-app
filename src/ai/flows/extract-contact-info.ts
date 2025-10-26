@@ -9,20 +9,12 @@
 import { ai } from '@/ai/genkit';
 import { googleAI } from '@genkit-ai/google-genai';
 import { z } from 'genkit';
+import { ExtractedContactInfo, ExtractedContactInfoOutputSchema } from '@/ai/schemas';
+
 
 const ExtractContactInfoInputSchema = z.object({
   emailBody: z.string().describe('The full text content of an email.'),
 });
-
-const ExtractedContactInfoOutputSchema = z.object({
-  name: z.string().nullish().describe('The full name of the contact.'),
-  company: z.string().nullish().describe('The company the contact works for.'),
-  designation: z.string().nullish().describe('The job title or designation of the contact.'),
-  phone: z.string().nullish().describe('The phone number of the contact.'),
-  linkedin: z.string().url().nullish().describe('The LinkedIn profile URL of the contact.'),
-});
-
-export type ExtractedContactInfo = z.infer<typeof ExtractedContactInfoOutputSchema>;
 
 export async function extractContactInfo(input: { emailBody: string }): Promise<ExtractedContactInfo> {
   return extractContactInfoFlow(input);

@@ -6,17 +6,16 @@ import { useForm, SubmitHandler } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { processSingleEmail } from '@/app/actions';
-import { initialize, handleSignIn as attemptSignIn, getRecentEmails, getLatestEmailBody, type GmailMessage } from '@/services/gmail';
+import { initialize, handleSignIn, handleSignOut, isUserAuthenticated, getRecentEmails, getLatestEmailBody, type RecentEmail } from '@/services/gmail';
+import type { ExtractedContactInfo } from '@/ai/schemas';
 
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
-import { Loader2, Mail, User, Building, Linkedin, Phone, Inbox, RefreshCw } from 'lucide-react';
+import { Loader2, User, Building, Linkedin, Phone, RefreshCw, Mail } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { formatDistanceToNow } from 'date-fns';
-
+import { useToast } from '@/hooks/use-toast';
 
 const formSchema = z.object({
   email: z.string().email({ message: 'Please enter a valid email address.' }),
@@ -24,44 +23,15 @@ const formSchema = z.object({
 
 type FormValues = z.infer<typeof formSchema>;
 
-type ExtractedInfo = {
-  name?: string | null;
-  company?: string | null;
-  designation?: string | null;
-  phone?: string | null;
-  linkedin?: string | null;
-};
-
 export default function HomePage() {
-  const [extractedInfo, setExtractedInfo] = useState<ExtractedInfo | null>(null);
+  const [extractedInfo, setExtractedInfo] = useState<ExtractedContactInfo | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [recentEmails, setRecentEmails] = useState<RecentEmail[]>([]);
+  const [isFetchingEmails, setIsFetchingEmails] = useState(false);
   const [isGisLoaded, setIsGisLoaded] = useState(false);
-  const [recentEmails, setRecentEmails] = useState<GmailMessage[]>([]);
-  const [isLoadingEmails, setIsLoadingEmails] = useState(false);
-
-
-  const fetchEmails = async () => {
-    setIsLoadingEmails(true);
-    try {
-      const emails = await getRecentEmails();
-      setRecentEmails(emails);
-    } catch (e) {
-      console.error("Failed to fetch recent emails", e);
-    } finally {
-      setIsLoadingEmails(false);
-    }
-  };
-
-  const onAuthSuccess = () => {
-    setIsAuthenticated(true);
-    fetchEmails();
-  }
-
-  useEffect(() => {
-    initialize(onAuthSuccess, () => setIsGisLoaded(true));
-  }, []);
+  const { toast } = useToast();
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -70,27 +40,71 @@ export default function HomePage() {
     },
   });
 
+  useEffect(() => {
+    initialize(() => {
+      setIsGisLoaded(true);
+      // Check initial auth state once GIS is loaded
+      const authenticated = isUserAuthenticated();
+      setIsAuthenticated(authenticated);
+      if (authenticated) {
+        handleRefresh();
+      }
+    });
+  }, []);
+
+  const onConnect = () => {
+    handleSignIn();
+    // A bit of a hack, but we need to poll to see when the user is authenticated
+    const interval = setInterval(() => {
+      const authenticated = isUserAuthenticated();
+      if (authenticated) {
+        setIsAuthenticated(true);
+        handleRefresh();
+        clearInterval(interval);
+      }
+    }, 500);
+  };
+  
+  const handleRefresh = async () => {
+    setIsFetchingEmails(true);
+    try {
+      const emails = await getRecentEmails();
+      setRecentEmails(emails);
+    } catch (error: any) {
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to fetch recent emails.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsFetchingEmails(false);
+    }
+  };
+
+
   const onSubmit: SubmitHandler<FormValues> = async (data) => {
     setIsProcessing(true);
     setExtractedInfo(null);
     setError(null);
     try {
-      // Step 1: Fetch email body on the client
-      const emailBody = await getLatestEmailBody(data.email);
-      
-      if (!emailBody) {
-        setError(`No email found from ${data.email}.`);
-        setIsProcessing(false);
-        return;
+      if (!isUserAuthenticated()) {
+        throw new Error("Please connect with Gmail first.");
       }
-      
-      // Step 2: Pass the email body to the server action
-      const result = await processSingleEmail(emailBody);
+
+      // 1. Fetch email body on the client
+      const emailBody = await getLatestEmailBody(data.email);
+
+      if (!emailBody) {
+        throw new Error(`No recent email found from ${data.email}.`);
+      }
+
+      // 2. Pass the email body to the server action
+      const result = await processSingleEmail({ emailBody: emailBody, senderEmail: data.email });
 
       if (result.success && result.data) {
         setExtractedInfo(result.data);
       } else {
-        setError(result.error || "Could not process email.");
+        setError(result.error || "Could not process email. Please check server logs.");
       }
     } catch (e: any) {
       setError(e.message || 'An unexpected error occurred.');
@@ -100,168 +114,163 @@ export default function HomePage() {
   };
 
   return (
-    <div className="min-h-screen p-4 sm:p-6 md:p-8">
-      <div className="max-w-7xl mx-auto">
-        <header className="mb-8 text-center">
-          <h1 className="font-headline text-3xl md:text-4xl font-bold tracking-tighter text-foreground">
+    <div className="min-h-screen bg-background flex items-center justify-center p-4">
+      <div className="w-full max-w-6xl mx-auto grid gap-8">
+        <header className="text-center">
+          <h1 className="font-headline text-4xl md:text-5xl font-bold tracking-tighter text-foreground">
             Email Contact Extractor
           </h1>
           <p className="text-muted-foreground mt-2 max-w-2xl mx-auto">
-            Connect your Gmail to fetch the latest email from a client and extract their key information using AI.
+            Connect your Gmail to find a client's latest email, and use AI to extract their key information.
           </p>
         </header>
 
-        <div className="grid gap-8 md:grid-cols-2">
-          <div className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Step 1: Connect Gmail</CardTitle>
-                <CardDescription>Authorize the app to read your Gmail inbox.</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <Button variant="outline" className="w-full" onClick={attemptSignIn} disabled={isAuthenticated || !isGisLoaded}>
-                  <Mail className="mr-2 h-4 w-4" /> {isAuthenticated ? 'Gmail Connected' : 'Connect with Gmail'}
-                </Button>
-              </CardContent>
-            </Card>
+        {!isAuthenticated && (
+          <Card className="max-w-md mx-auto">
+            <CardHeader>
+              <CardTitle>Connect to Gmail</CardTitle>
+              <CardDescription>You need to authorize the app to read your Gmail inbox.</CardDescription>
+            </CardHeader>
+            <CardFooter>
+              <Button onClick={onConnect} className="w-full" disabled={!isGisLoaded}>
+                { !isGisLoaded ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Mail className="mr-2" /> }
+                { !isGisLoaded ? 'Initializing...' : 'Connect with Gmail' }
+              </Button>
+            </CardFooter>
+          </Card>
+        )}
 
-            {isAuthenticated && (
-                <Card>
-                    <CardHeader>
-                        <div className="flex justify-between items-center">
-                            <div className="space-y-1">
-                                <CardTitle className="flex items-center gap-2">
-                                    <Inbox />
-                                    Recent Emails
-                                </CardTitle>
-                                <CardDescription>
-                                    Here are your 5 most recent emails.
-                                </CardDescription>
-                            </div>
-                            <Button variant="ghost" size="icon" onClick={fetchEmails} disabled={isLoadingEmails}>
-                                <RefreshCw className={`h-4 w-4 ${isLoadingEmails ? 'animate-spin' : ''}`} />
-                            </Button>
-                        </div>
-                    </CardHeader>
-                    <CardContent>
-                        {isLoadingEmails && recentEmails.length === 0 ? (
-                             <div className="flex items-center justify-center h-48">
-                                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-                            </div>
-                        ) : (
-                            <ul className="space-y-4">
-                                {recentEmails.map(email => (
-                                    <li key={email.id} className="flex items-start gap-3">
-                                        <Avatar className="h-8 w-8 text-xs">
-                                            <AvatarFallback>{email.from.charAt(0)}</AvatarFallback>
-                                        </Avatar>
-                                        <div className="flex-1 overflow-hidden">
-                                            <div className="flex justify-between items-baseline">
-                                                <p className="font-medium text-sm truncate">{email.from}</p>
-                                                <p className="text-xs text-muted-foreground whitespace-nowrap">
-                                                    {formatDistanceToNow(new Date(email.date), { addSuffix: true })}
-                                                </p>
-                                            </div>
-                                            <p className="text-sm font-semibold truncate">{email.subject}</p>
-                                            <p className="text-xs text-muted-foreground truncate">{email.snippet}</p>
-                                        </div>
-                                    </li>
-                                ))}
-                            </ul>
-                        )}
-                    </CardContent>
-                </Card>
-            )}
-          </div>
-          
-          <div className="space-y-6">
-             <Card>
-              <Form {...form}>
-                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
-                  <CardHeader>
-                    <CardTitle>Step 2: Extract Information</CardTitle>
-                    <CardDescription>Enter a client's email to find and process their latest email.</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <FormField
-                      control={form.control}
-                      name="email"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Client's Email Address</FormLabel>
-                          <FormControl>
-                            <Input placeholder="name@example.com" {...field} disabled={!isAuthenticated} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </CardContent>
-                  <CardFooter>
-                    <Button type="submit" disabled={isProcessing || !isAuthenticated} className="w-full">
-                      {isProcessing ? (
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      ) : null}
-                      Fetch & Extract
-                    </Button>
-                  </CardFooter>
-                </form>
-              </Form>
-            </Card>
-
-            <Card className="h-full">
-              <CardHeader>
-                <CardTitle>Extracted Information</CardTitle>
-                <CardDescription>Contact details will appear here after processing.</CardDescription>
-              </CardHeader>
-              <CardContent>
-                {isProcessing && (
-                  <div className="flex items-center justify-center h-48">
-                    <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-                  </div>
-                )}
-                {error && (
-                  <div className="text-destructive text-sm font-medium">{error}</div>
-                )}
-                {extractedInfo && (
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-4">
-                      <User className="h-5 w-5 text-muted-foreground" />
-                      <div className="flex-1">
-                        <p className="text-sm text-muted-foreground">Name</p>
-                        <p className="font-medium">{extractedInfo.name || 'N/A'}</p>
-                      </div>
-                    </div>
-                     <Separator />
-                    <div className="flex items-center gap-4">
-                      <Building className="h-5 w-5 text-muted-foreground" />
-                      <div className="flex-1">
-                        <p className="text-sm text-muted-foreground">Company</p>
-                        <p className="font-medium">{extractedInfo.company || 'N/A'}</p>
-                      </div>
-                    </div>
+        {isAuthenticated && (
+           <div className="grid gap-8 md:grid-cols-2">
+           <Card>
+             <Form {...form}>
+               <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col h-full">
+                 <CardHeader>
+                   <CardTitle>Extract Contact Information</CardTitle>
+                   <CardDescription>Enter an email to find and process the latest email from that sender.</CardDescription>
+                 </CardHeader>
+                 <CardContent className="flex-grow">
+                   <FormField
+                     control={form.control}
+                     name="email"
+                     render={({ field }) => (
+                       <FormItem>
+                         <FormLabel>Client's Email Address</FormLabel>
+                         <FormControl>
+                           <Input placeholder="name@example.com" {...field} />
+                         </FormControl>
+                         <FormMessage />
+                       </FormItem>
+                     )}
+                   />
+                 </CardContent>
+                 <CardFooter>
+                   <Button type="submit" disabled={isProcessing} className="w-full">
+                     {isProcessing ? (
+                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                     ) : null}
+                     Fetch & Extract Contact
+                   </Button>
+                 </CardFooter>
+               </form>
+             </Form>
+           </Card>
+ 
+           <Card>
+             <CardHeader>
+               <CardTitle>Extracted Information</CardTitle>
+               <CardDescription>Contact details will appear here after processing.</CardDescription>
+             </CardHeader>
+             <CardContent className="h-[250px] flex items-center justify-center">
+               {isProcessing && (
+                 <div className="flex flex-col items-center gap-2">
+                   <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                   <p className="text-muted-foreground text-sm">Extracting information...</p>
+                 </div>
+               )}
+               {error && (
+                 <div className="text-destructive text-sm font-medium text-center">{error}</div>
+               )}
+               {!isProcessing && !error && !extractedInfo && (
+                 <div className="text-center text-muted-foreground">
+                   <p>Awaiting submission...</p>
+                 </div>
+               )}
+               {extractedInfo && (
+                 <div className="space-y-4 w-full">
+                   <div className="flex items-center gap-4">
+                     <User className="h-5 w-5 text-muted-foreground" />
+                     <div className="flex-1">
+                       <p className="text-sm text-muted-foreground">Name</p>
+                       <p className="font-medium">{extractedInfo.name || 'N/A'}</p>
+                     </div>
+                   </div>
                     <Separator />
-                     <div className="flex items-center gap-4">
-                      <Phone className="h-5 w-5 text-muted-foreground" />
-                      <div className="flex-1">
-                        <p className="text-sm text-muted-foreground">Phone</p>
-                        <p className="font-medium">{extractedInfo.phone || 'N/A'}</p>
-                      </div>
-                    </div>
-                     <Separator />
+                   <div className="flex items-center gap-4">
+                     <Building className="h-5 w-5 text-muted-foreground" />
+                     <div className="flex-1">
+                       <p className="text-sm text-muted-foreground">Company</p>
+                       <p className="font-medium">{extractedInfo.company || 'N/A'}</p>
+                     </div>
+                   </div>
+                   <Separator />
                     <div className="flex items-center gap-4">
-                      <Linkedin className="h-5 w-5 text-muted-foreground" />
-                      <div className="flex-1">
-                        <p className="text-sm text-muted-foreground">LinkedIn</p>
-                        <p className="font-medium break-all">{extractedInfo.linkedin ? <a href={extractedInfo.linkedin} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">{extractedInfo.linkedin}</a> : 'N/A'}</p>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+                     <Phone className="h-5 w-5 text-muted-foreground" />
+                     <div className="flex-1">
+                       <p className="text-sm text-muted-foreground">Phone</p>
+                       <p className="font-medium">{extractedInfo.phone || 'N/A'}</p>
+                     </div>
+                   </div>
+                    <Separator />
+                   <div className="flex items-center gap-4">
+                     <Linkedin className="h-5 w-5 text-muted-foreground" />
+                     <div className="flex-1">
+                       <p className="text-sm text-muted-foreground">LinkedIn</p>
+                       <p className="font-medium break-all">{extractedInfo.linkedin ? <a href={extractedInfo.linkedin} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">{extractedInfo.linkedin}</a> : 'NA'}</p>
+                     </div>
+                   </div>
+                 </div>
+               )}
+             </CardContent>
+           </Card>
           </div>
-        </div>
+        )}
+
+        {isAuthenticated && (
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle>Recent Emails</CardTitle>
+                <CardDescription>Your 5 most recent emails.</CardDescription>
+              </div>
+              <Button variant="outline" size="icon" onClick={handleRefresh} disabled={isFetchingEmails}>
+                {isFetchingEmails ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+              </Button>
+            </CardHeader>
+            <CardContent>
+              {isFetchingEmails && recentEmails.length === 0 ? (
+                <div className="flex justify-center items-center h-24">
+                  <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                </div>
+              ) : recentEmails.length > 0 ? (
+                <ul className="space-y-4">
+                  {recentEmails.map(email => (
+                    <li key={email.id} className="p-4 border rounded-lg hover:bg-muted/50 transition-colors">
+                      <p className="font-semibold">{email.subject}</p>
+                      <p className="text-sm text-muted-foreground">From: {email.from}</p>
+                      <p className="text-sm text-muted-foreground truncate">{email.snippet}</p>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-center text-muted-foreground">No recent emails found.</p>
+              )}
+            </CardContent>
+            <CardFooter>
+                 <Button variant="outline" onClick={handleSignOut} className="w-full">Sign Out of Gmail</Button>
+            </CardFooter>
+          </Card>
+        )}
       </div>
     </div>
   );
