@@ -61,21 +61,37 @@ export default function HomePage() {
     defaultValues: { linkedinUrl: '', company: '' },
   });
 
+  const handleRefresh = async () => {
+    setIsFetchingEmails(true);
+    try {
+      const emails = await getRecentEmails();
+      setRecentEmails(emails);
+    } catch (error: any) {
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to fetch recent emails.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsFetchingEmails(false);
+    }
+  };
+
 
   useEffect(() => {
     initialize(() => {
-      // Use an interval to check until both scripts are ready.
-      const readyInterval = setInterval(() => {
-        if (isGapiAndGisReady()) {
-            setIsGisLoaded(true);
-            const authenticated = isUserAuthenticated();
-            setIsAuthenticated(authenticated);
-            if (authenticated) {
-              handleRefresh();
-            }
-            clearInterval(readyInterval);
+        // This callback runs once GIS is loaded.
+        setIsGisLoaded(true);
+        const authenticated = isUserAuthenticated();
+        setIsAuthenticated(authenticated);
+        if (authenticated) {
+          handleRefresh();
         }
-      }, 100);
+    }, () => {
+        // This is the success callback after authentication.
+        setIsAuthenticated(true);
+
+        handleRefresh();
     });
   }, []);
 
@@ -117,33 +133,8 @@ export default function HomePage() {
 
   const onConnect = () => {
     handleSignIn();
-    const interval = setInterval(() => {
-      const authenticated = isUserAuthenticated();
-      if (authenticated) {
-        setIsAuthenticated(true);
-        handleRefresh();
-        clearInterval(interval);
-      }
-    }, 500);
   };
   
-  const handleRefresh = async () => {
-    setIsFetchingEmails(true);
-    try {
-      const emails = await getRecentEmails();
-      setRecentEmails(emails);
-    } catch (error: any) {
-      toast({
-        title: 'Error',
-        description: error.message || 'Failed to fetch recent emails.',
-        variant: 'destructive',
-      });
-    } finally {
-      setIsFetchingEmails(false);
-    }
-  };
-
-
   const onEmailSubmit: SubmitHandler<EmailFormValues> = async (data) => {
     setIsProcessing(true);
     setExtractedInfo(null);

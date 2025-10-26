@@ -26,9 +26,10 @@ let gisLoaded = false;
 
 /**
  * Initializes the Google API client and Google Identity Services client.
- * @param onGisLoaded - Callback to run when GIS is loaded.
+ * @param onGisLoaded - Callback to run when GIS is loaded and ready.
+ * @param onAuthSuccess - Callback to run after a user successfully authenticates.
  */
-export function initialize(onGisLoaded: () => void) {
+export function initialize(onGisLoaded: () => void, onAuthSuccess: () => void) {
   if (typeof window === 'undefined') return;
 
   // Load GAPI script
@@ -47,7 +48,7 @@ export function initialize(onGisLoaded: () => void) {
   gisScript.async = true;
   gisScript.defer = true;
   gisScript.onload = () => {
-    initializeGisClient(onGisLoaded);
+    initializeGisClient(onGisLoaded, onAuthSuccess);
   };
   document.body.appendChild(gisScript);
 }
@@ -64,7 +65,7 @@ async function initializeGapiClient() {
   }
 }
 
-function initializeGisClient(onGisLoaded: () => void) {
+function initializeGisClient(onGisLoaded: () => void, onAuthSuccess: () => void) {
   try {
     tokenClient = window.google.accounts.oauth2.initTokenClient({
       client_id: GAPI_CLIENT_ID,
@@ -74,8 +75,10 @@ function initializeGisClient(onGisLoaded: () => void) {
           console.error('GIS Token Client Error:', resp.error);
           throw new Error(resp.error);
         }
-        // This is the crucial fix: Set the token for the GAPI client.
+        // Set the token for the GAPI client.
         window.gapi.client.setToken({ access_token: resp.access_token });
+        // Trigger the success callback to update React state.
+        onAuthSuccess();
       },
     });
     gisLoaded = true;
