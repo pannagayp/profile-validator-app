@@ -391,7 +391,7 @@ export default function HomePage() {
                         </Badge>
                     )}
                     <ScrollArea className="h-full w-full rounded-md border flex-grow">
-                        <pre className="text-xs p-4 whitespace-pre-wrap">
+                        <pre className="text-xs p-4">
                           {JSON.stringify(linkedInResult, null, 2)}
                         </pre>
                     </ScrollArea>
@@ -440,5 +440,3 @@ export default function HomePage() {
     </div>
   );
 }
-
-    
