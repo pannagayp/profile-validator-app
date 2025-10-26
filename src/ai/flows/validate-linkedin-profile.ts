@@ -45,11 +45,11 @@ async function searchApifyLinkedIn(linkedinUrl: string, companyName: string): Pr
     }
     
     const client = new ApifyClient({ token: apifyToken });
-    const ACTOR_ID = "apidojo/linkedin-profile-scraper"; 
+    const ACTOR_ID = "apimaestro/linkedin-profile-batch-scraper-no-cookies-required"; 
 
     // Prepare the Actor input.
     const actorInput = {
-        "startUrls": [{ "url": linkedinUrl }]
+        "linkedinUrls": [linkedinUrl]
     };
     
     console.log(`Starting Apify actor '${ACTOR_ID}' with input:`, actorInput);
@@ -72,23 +72,28 @@ async function searchApifyLinkedIn(linkedinUrl: string, companyName: string): Pr
     if (items && items.length > 0) {
         const firstResult: any = items[0];
 
+        // Handle placeholder data issue
+        if (firstResult.company === 'YouTube') {
+            console.warn('[Apify Result] Actor returned placeholder "YouTube" company. Treating as not found.');
+            return null;
+        }
+        
         const profileUrl = firstResult.url;
         
         // Search through all experiences for a company match
-        const experiences = firstResult.experience || [];
+        const experiences = firstResult.experiences || [];
         for (const job of experiences) {
-            // apidojo actor uses companyName field
-            if (job.companyName && job.companyName.toLowerCase().includes(companyName.toLowerCase())) {
-                console.log(`[Apify Result] Found matching company '${job.companyName}' for profile: ${profileUrl}`);
+            if (job.company && job.company.toLowerCase().includes(companyName.toLowerCase())) {
+                console.log(`[Apify Result] Found matching company '${job.company}' for profile: ${profileUrl}`);
                 return {
                     profileUrl,
-                    company: job.companyName, // Return the matched company name
+                    company: job.company, // Return the matched company name
                 };
             }
         }
 
         // If no match was found in the loop
-        const latestCompany = experiences.length > 0 ? experiences[0].companyName : 'N/A';
+        const latestCompany = experiences.length > 0 ? experiences[0].company : 'N/A';
         console.warn(`[Apify Result] No company match found. Provided: ${companyName}, Latest on LinkedIn: ${latestCompany}`);
         return {
             profileUrl,
@@ -121,7 +126,7 @@ const validateLinkedInProfileFlow = ai.defineFlow(
         const linkedInProfile = await searchApifyLinkedIn(linkedinUrl, company);
 
         if (!linkedInProfile) {
-            result = { status: 'profile_not_found', message: `No LinkedIn profile found for ${linkedinUrl}.` };
+            result = { status: 'profile_not_found', message: `No valid LinkedIn profile found for ${linkedinUrl}. The actor may have failed or returned placeholder data.` };
         } else {
             // Use .includes() for a more flexible match (e.g., "Google" vs "Google LLC")
             if (linkedInProfile.company.toLowerCase().includes(company.toLowerCase())) {
