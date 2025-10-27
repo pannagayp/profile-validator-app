@@ -1,14 +1,15 @@
+
 'use client';
 
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState } from 'react';
 import {
   initialize,
   handleSignIn,
   listMessages,
   getLatestEmailBody,
   Message,
-  Attachment,
 } from '@/services/gmail';
+import { processSingleEmail } from '@/firebase/server/db';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -18,13 +19,11 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
   ArrowPathIcon,
-  CheckCircleIcon,
   ExclamationCircleIcon,
-  PaperClipIcon,
 } from '@heroicons/react/24/outline';
+import { type ExtractedContactInfo } from '@/ai/schemas';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -34,8 +33,12 @@ export default function HomePage() {
   const [status, setStatus] = useState<Status>('idle');
   const [error, setError] = useState<string | null>(null);
 
-  const [processedContent, setProcessedContent] = useState<string | null>(null);
-  const [isProcessing, setIsProcessing] = useState(false);
+  const [processedEmails, setProcessedEmails] = useState<
+    Record<string, ExtractedContactInfo | null>
+  >({});
+  const [processingState, setProcessingState] = useState<
+    Record<string, { isProcessing: boolean; error?: string }>
+  >({});
 
   const onAuthSuccess = () => {
     setIsSignedIn(true);
@@ -65,30 +68,38 @@ export default function HomePage() {
   };
 
   const onEmailSubmit = async (message: Message) => {
-    setIsProcessing(true);
-    setProcessedContent(null);
-    setError(null);
+    setProcessingState((prev) => ({
+      ...prev,
+      [message.id]: { isProcessing: true },
+    }));
+
     try {
-      const { body, attachments } = await getLatestEmailBody(message.id);
-      
-      let content = `Email Body:\n${body}\n\n`;
+      const { body } = await getLatestEmailBody(message.id);
 
-      if (attachments.length > 0) {
-        content += `Attachments:\n`;
-        for (const att of attachments) {
-          content += `- ${att.filename} (Size: ${att.size} bytes)\n`;
-          // Here you would add the logic to extract data from the attachment
-          // For now, we are just listing them.
-        }
+      const result = await processSingleEmail({
+        emailBody: body,
+        senderEmail: message.senderEmail,
+      });
+
+      if (result.success && result.data) {
+        setProcessedEmails((prev) => ({ ...prev, [message.id]: result.data }));
+      } else {
+        setProcessingState((prev) => ({
+          ...prev,
+          [message.id]: { isProcessing: false, error: result.error },
+        }));
       }
-      
-      setProcessedContent(content);
-
     } catch (err) {
-      setError('Failed to process email.');
+      setProcessingState((prev) => ({
+        ...prev,
+        [message.id]: { isProcessing: false, error: 'Failed to process email.' },
+      }));
       console.error(err);
     } finally {
-      setIsProcessing(false);
+      setProcessingState((prev) => ({
+        ...prev,
+        [message.id]: { ...prev[message.id], isProcessing: false },
+      }));
     }
   };
 
@@ -153,39 +164,55 @@ export default function HomePage() {
 
       {status === 'success' && (
         <div className="space-y-4">
-          {messages.map((message) => (
-            <Card key={message.id}>
-              <CardHeader>
-                <div className="flex items-start justify-between">
-                  <div>
-                    <CardTitle className="text-lg font-medium">
-                      {message.senderName}
-                    </CardTitle>
-                    <CardDescription>{message.senderEmail}</CardDescription>
+          {messages.map((message) => {
+            const processedData = processedEmails[message.id];
+            const state = processingState[message.id] || { isProcessing: false };
+
+            return (
+              <Card key={message.id}>
+                <CardHeader>
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <CardTitle className="text-lg font-medium">
+                        {message.senderName}
+                      </CardTitle>
+                      <CardDescription>{message.senderEmail}</CardDescription>
+                    </div>
+                    <div className="text-sm text-gray-500">
+                      {new Date(message.timestamp).toLocaleDateString()}
+                    </div>
                   </div>
-                  <div className="text-sm text-gray-500">
-                    {new Date(message.timestamp).toLocaleDateString()}
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm text-gray-600">{message.snippet}</p>
+                  <div className="mt-4">
+                    <Button
+                      onClick={() => onEmailSubmit(message)}
+                      disabled={state.isProcessing}
+                    >
+                      {state.isProcessing ? 'Processing...' : 'Process Email'}
+                    </Button>
                   </div>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-gray-600">{message.snippet}</p>
-                <div className="mt-4">
-                  <Button onClick={() => onEmailSubmit(message)} disabled={isProcessing}>
-                    {isProcessing ? 'Processing...' : 'Process Email'}
-                  </Button>
-                </div>
-              </CardContent>
-               {processedContent && (
-                <CardFooter className="flex-col items-start">
-                   <h4 className="font-semibold">Processed Content:</h4>
-                   <pre className="mt-2 whitespace-pre-wrap rounded-md bg-gray-100 p-4 text-sm">
-                     {processedContent}
-                   </pre>
-                </CardFooter>
-              )}
-            </Card>
-          ))}
+                </CardContent>
+                {processedData && (
+                  <CardFooter className="flex-col items-start gap-2">
+                    <h4 className="font-semibold">Extracted Information:</h4>
+                    <div className="rounded-md bg-gray-100 p-4 text-sm w-full">
+                      <p><strong>Name:</strong> {processedData.name || 'N/A'}</p>
+                      <p><strong>Email:</strong> {processedData.email || 'N/A'}</p>
+                      <p><strong>Company:</strong> {processedData.company || 'N/A'}</p>
+                      <p><strong>LinkedIn:</strong> {processedData.linkedin || 'N/A'}</p>
+                    </div>
+                  </CardFooter>
+                )}
+                 {state.error && (
+                  <CardFooter>
+                    <p className="text-sm text-red-600">{state.error}</p>
+                  </CardFooter>
+                 )}
+              </Card>
+            );
+          })}
         </div>
       )}
     </div>
