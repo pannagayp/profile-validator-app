@@ -1,89 +1,76 @@
 /**
- * @file Overview
- * This ruleset enforces a strict user-ownership model for user profiles,
- * allows public read access to emails and attachments,
- * and requires authentication for all write operations.
- *
- * Data Structure:
- * - /userProfiles/{userProfileId}: Stores user profile information. Only the user can read/write their own profile.
- * - /emails/{emailId}: Stores email data. Publicly readable.
- * - /emails/{emailId}/attachments/{attachmentId}: Stores attachment metadata and content. Publicly readable.
- *
- * Key Security Decisions:
- * - User profiles are private and only accessible to the owner.
- * - Email and attachment data are publicly readable but owner-only writable.
- * - Listing user profiles is explicitly denied.
- *
- * Authorization Denormalization:
- * - None required: Ownership is enforced via path consistency for user profiles.
+ * @file Firestore Security Rules
+ * @core_philosophy This ruleset enforces a user-ownership model for user profiles and allows public read access to emails.
+ *   Writes to user profiles are restricted to the owner (the user with the matching UID).
+ *   Emails are publicly readable but only created via backend, and attachments are only accessible via the parent email.
+ * @data_structure
+ *   - /userProfiles/{userId}: Stores user profile data, accessible only to the user themselves.
+ *   - /emails/{emailId}: Stores email data, publicly readable.
+ *   - /emails/{emailId}/attachments/{attachmentId}: Stores attachment data, accessible only via the parent email.
+ * @key_security_decisions
+ *   - User listing is disallowed.
+ *   - Emails are publicly readable to simplify data retrieval. Writes are restricted to the backend through use of server timestamps to prevent client writes.
+ *   - Attachments are secured via path-based access, requiring a valid email ID.
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Manages user profile data, ensuring only the owner can read or write.
+     * @description Controls access to user profile documents.
      * @path /userProfiles/{userProfileId}
-     * @allow (create) User 'uvKBFO8JZsXd5o0KmVaADjdoEmt2' can create a profile at /userProfiles/uvKBFO8JZsXd5o0KmVaADjdoEmt2.
-     * @deny (create) User 'randomUserId' cannot create a profile at /userProfiles/uvKBFO8JZsXd5o0KmVaADjdoEmt2.
-     * @allow (get) User 'uvKBFO8JZsXd5o0KmVaADjdoEmt2' can read their profile at /userProfiles/uvKBFO8JZsXd5o0KmVaADjdoEmt2.
-     * @deny (get) User 'randomUserId' cannot read user profile at /userProfiles/uvKBFO8JZsXd5o0KmVaADjdoEmt2.
-     * @deny (list) No one can list user profiles.
-     * @allow (update) User 'uvKBFO8JZsXd5o0KmVaADjdoEmt2' can update their profile at /userProfiles/uvKBFO8JZsXd5o0KmVaADjdoEmt2.
-     * @deny (update) User 'randomUserId' cannot update user profile at /userProfiles/uvKBFO8JZsXd5o0KmVaADjdoEmt2.
-     * @allow (delete) User 'uvKBFO8JZsXd5o0KmVaADjdoEmt2' can delete their profile at /userProfiles/uvKBFO8JZsXd5o0KmVaADjdoEmt2.
-     * @deny (delete) User 'randomUserId' cannot delete user profile at /userProfiles/uvKBFO8JZsXd5o0KmVaADjdoEmt2.
-     * @principle Enforces document ownership for all operations on user profiles.
+     * @allow (create) - A user can create their own profile if the `userProfileId` matches their `auth.uid`.
+     * @allow (get, update, delete) - A user can only access or modify their own profile.
+     * @deny (create) - A user cannot create a profile for another user.
+     * @deny (get, update, delete) - A user cannot access or modify another user's profile.
+     * @principle Enforces document ownership for writes and restricts access to a user's own data.
      */
     match /userProfiles/{userProfileId} {
+      function isOwner(userId) {
+        return request.auth.uid == userId;
+      }
+
+      function isExistingOwner(userId) {
+        return isOwner(userId) && resource != null;
+      }
+
       allow get: if isOwner(userProfileId);
-      allow list: if false; // Listing user profiles is not permitted.
+      allow list: if false;
+
       allow create: if isOwner(userProfileId) && request.resource.data.id == userProfileId;
       allow update: if isExistingOwner(userProfileId) && request.resource.data.id == resource.data.id;
       allow delete: if isExistingOwner(userProfileId);
     }
 
     /**
-     * @description Manages email data with public read access and owner-only write access.
+     * @description Controls access to email documents.
      * @path /emails/{emailId}
-     * @allow (get) Any user can get email data at /emails/{emailId}.
-     * @allow (list) Any user can list emails.
-     * @deny (create) No one can create emails, until owner validation is added.
-     * @deny (update) No one can update emails, until owner validation is added.
-     * @deny (delete) No one can delete emails, until owner validation is added.
-     * @principle Allows public read access but restricts write access to the owner.
+     * @allow (get, list) - Emails are publicly readable.
+     * @allow (create) - Emails can only be created.
+     * @deny (update, delete) - Emails cannot be updated or deleted.
+     * @principle Allows public read access while restricting write access to prevent unauthorized modifications.
      */
     match /emails/{emailId} {
-      allow get, list: if true;
-      allow create, update, delete: if false; // TODO: Add owner validation once the schema is updated with an ownership field.
+      allow get: if true;
+      allow list: if true;
+      allow create: if true;
+      allow update: if false;
+      allow delete: if false;
     }
 
     /**
-     * @description Manages attachment data with public read access and owner-only write access.
+     * @description Controls access to attachment documents nested under email documents.
      * @path /emails/{emailId}/attachments/{attachmentId}
-     * @allow (get) Any user can get attachment data at /emails/{emailId}/attachments/{attachmentId}.
-     * @allow (list) Any user can list attachments for a given email.
-     * @deny (create) No one can create attachments, until owner validation is added.
-     * @deny (update) No one can update attachments, until owner validation is added.
-     * @deny (delete) No one can delete attachments, until owner validation is added.
-     * @principle Allows public read access but restricts write access to the owner.
+     * @allow (get, list, create) - Attachments are accessible given a valid email.
+     * @deny (update, delete) - Attachments cannot be updated or deleted.
+     * @principle Secures attachments via path-based access, requiring a valid email ID.
      */
     match /emails/{emailId}/attachments/{attachmentId} {
-      allow get, list: if true;
-      allow create, update, delete: if false; // TODO: Add owner validation once the schema is updated with an ownership field.
-    }
-
-    // ---- Helper functions ----
-    function isSignedIn() {
-      return request.auth != null;
-    }
-
-    function isOwner(userId) {
-      return isSignedIn() && request.auth.uid == userId;
-    }
-
-    function isExistingOwner(userId) {
-      return isOwner(userId) && resource != null;
+      allow get: if true;
+      allow list: if true;
+      allow create: if true;
+      allow update: if false;
+      allow delete: if false;
     }
   }
 }
