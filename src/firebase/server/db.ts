@@ -1,5 +1,6 @@
 'use server';
 
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { z } from 'zod';
 import { summarizeValidationFailures } from '@/ai/flows/summarize-validation-failures';
 import { getValidationErrors, clearValidationErrors } from '@/lib/db';
