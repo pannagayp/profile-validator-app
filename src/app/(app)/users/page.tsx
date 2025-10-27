@@ -9,6 +9,7 @@ import {
   useCollection,
   useFirestore,
   addDocumentNonBlocking,
+  useMemoFirebase,
 } from '@/firebase';
 import {
   collection,
@@ -147,7 +148,7 @@ function AddUserForm() {
 function UserList() {
   const firestore = useFirestore();
 
-  const userProfilesQuery = useMemo(() => {
+  const userProfilesQuery = useMemoFirebase(() => {
     if (!firestore) return null;
     return query(collection(firestore, 'userProfiles'), orderBy('lastName', 'asc'));
   }, [firestore]);
