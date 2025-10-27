@@ -30,10 +30,10 @@ export const processEmailFlow = ai.defineFlow(
   async (input) => {
     // If there's no body, return an empty result.
     if (!input.emailBody) {
-      return { rawContent: 'No email body provided.' };
+      return { rawContent: 'No email body provided.', dataUri: null };
     }
     
     const { output } = await processEmailPrompt(input);
-    return output || { rawContent: 'Failed to process email content.' };
+    return output || { rawContent: 'Failed to process email content.', dataUri: null };
   }
 );

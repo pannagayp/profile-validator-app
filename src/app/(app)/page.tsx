@@ -10,6 +10,7 @@ import {
   Message,
   Attachment,
   filterMessagesByRegisteredSenders,
+  getAttachmentData,
 } from '@/services/gmail';
 import { processSingleEmail } from '@/firebase/server/db';
 import { Button } from '@/components/ui/button';

@@ -64,7 +64,7 @@ export async function processSingleEmail(input: ProcessEmailInput): Promise<{ su
 
     } catch (e: any) {
         console.error("Error processing email action:", e);
-        if (e.code && e.code.startsWith('permission-denied')) {
+        if (typeof e === 'object' && e !== null && typeof e.code === 'string' && e.code.startsWith('permission-denied')) {
             return { success: false, error: "Database permission error. Check your Firestore rules."}
         }
         return { success: false, error: e.message || "An unexpected error occurred while processing the email." };
