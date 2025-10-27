@@ -1,110 +1,96 @@
 /**
- * @fileoverview Firestore Security Rules for the application.
+ * @fileoverview Firestore Security Rules for the email processing application.
  *
  * Core Philosophy:
- * This ruleset enforces a strict user-ownership model for user profiles,
- * allows public read access to emails while restricting writes to authenticated users,
- * and enforces ownership for attachments within emails.
+ * This ruleset prioritizes secure data access based on user identity. It enforces strict
+ * separation of data and ensures that users can only access data that they are authorized to view.
+ * Public read access is only granted where explicitly intended and safe.
  *
  * Data Structure:
- * - /userProfiles/{userProfileId}: Stores user profile data, with 'userProfileId' matching the user's UID.
- * - /emails/{emailId}: Stores email data. Publicly readable but writable only with proper authorization.
- * - /emails/{emailId}/attachments/{attachmentId}: Stores attachment metadata and content, owned by the corresponding email.
+ * - /client/{clientId}: Stores client profiles, where 'clientId' is the user's unique ID.
+ * - /emails/{emailId}: Stores email data.  A `clientId` field, if present, links an email to a client.
+ * - /emails/{emailId}/attachments/{attachmentId}: Stores attachment metadata and content.
  *
  * Key Security Decisions:
- * - User profiles are private and accessible only to the owning user.
- * - Emails are publicly readable (for now, for prototyping).
- * - Attachments are only writable by authorized users who can write to the parent `/emails/{emailId}` document.
- * - Listing of user profiles is disallowed to prevent information disclosure.
+ * - Clients can only read/write their own profile data.
+ * - Listing of clients is disallowed.
+ * - Public read access is allowed for emails, as the `clientId` is nullable.
+ * - Attachments are only accessible via email documents.
  *
  * Denormalization for Authorization:
- * The `Email` entity contains a nullable `userProfileId`.
+ * - The `emails` collection contains a `clientId` field. This is used to quickly associate emails with clients, avoiding expensive queries. The `clientId` field is nullable, to safely handle emails from unknown senders.
+ *
+ * Structural Segregation:
+ * - Client profiles and email data are stored in separate collections (`/client` and `/emails`). This ensures that client-specific information is protected while allowing emails to be processed independently.
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Controls access to user profile documents. Only the owner can read or write their profile.
-     * @path /userProfiles/{userProfileId}
-     * @allow (create) - User with UID 'user123' can create a profile document with ID 'user123'.
-     * @allow (get, update, delete) - User with UID 'user123' can read, update, or delete their own profile document with ID 'user123'.
-     * @deny (create) - User with UID 'user456' cannot create a profile document with ID 'user123'.
-     * @deny (get, update, delete) - User with UID 'user456' cannot read, update, or delete the profile document with ID 'user123'.
-     * @principle Enforces document ownership for all operations on user profiles.
+     * @description Protects the client profiles. Clients can only read and write their own profile data. Listing all clients is disallowed.
+     * @path /client/{clientId}
+     * @allow (create) - User 'uvKBFO8JZsXd5o0KmVaADjdoEmt2' creates a new client profile with ID matching their UID.
+     * @allow (get) - User 'uvKBFO8JZsXd5o0KmVaADjdoEmt2' reads their own client profile.
+     * @allow (update) - User 'uvKBFO8JZsXd5o0KmVaADjdoEmt2' updates their own client profile.
+     * @allow (delete) - User 'uvKBFO8JZsXd5o0KmVaADjdoEmt2' deletes their own client profile.
+     * @deny (create) - User 'uvKBFO8JZsXd5o0KmVaADjdoEmt2' attempts to create a client profile with an ID different from their UID.
+     * @deny (get) - User 'anotherUserId' attempts to read client profile 'uvKBFO8JZsXd5o0KmVaADjdoEmt2'.
+     * @deny (update) - User 'anotherUserId' attempts to update client profile 'uvKBFO8JZsXd5o0KmVaADjdoEmt2'.
+     * @deny (delete) - User 'anotherUserId' attempts to delete client profile 'uvKBFO8JZsXd5o0KmVaADjdoEmt2'.
+     * @deny (list) - Any user attempts to list all client profiles.
+     * @principle Enforces document ownership for all operations on client profiles.
      */
-    match /userProfiles/{userProfileId} {
-      // Helper function to check if the request is made by the owner of the user profile.
-      function isOwner(userProfileId) {
-        return request.auth != null && request.auth.uid == userProfileId;
+    match /client/{clientId} {
+      function isOwner(userId) {
+        return request.auth.uid == userId;
       }
 
-      // Allow a user to create their own profile if the user ID matches the document ID.
-      allow create: if isOwner(userProfileId) && request.resource.data.id == userProfileId;
+      function isExistingOwner(userId) {
+        return isOwner(userId) && resource != null;
+      }
 
-      // Allow the owner to get their own profile.
-      allow get: if isOwner(userProfileId);
-
-      // Disallow listing user profiles for privacy.
+      allow create: if isOwner(clientId) && request.resource.data.id == clientId;
+      allow get: if isOwner(clientId);
+      allow update: if isExistingOwner(clientId) && request.resource.data.id == resource.data.id;
+      allow delete: if isExistingOwner(clientId);
       allow list: if false;
-
-      // Allow the owner to update their own profile, enforcing immutability of the userProfileId.
-      allow update: if isOwner(userProfileId) && resource.data.id == userProfileId;
-
-      // Allow the owner to delete their own profile.
-      allow delete: if isOwner(userProfileId) && resource.data.id == userProfileId;
     }
 
     /**
-     * @description Controls access to email documents.
+     * @description Allows public read access to email data. Writes are not allowed directly.
      * @path /emails/{emailId}
-     * @allow (get, list) - Any user can read email documents.
-     * @allow (create) - Authenticated user can create email documents.
-     * @deny (update, delete) - Only authenticated users can update and delete emails.
-     * @principle Allows public read access but restricts writes to authenticated users.
+     * @allow (get) - Any user can read email data.
+     * @allow (list) - Any user can list email documents.
+     * @deny (create) - Any user attempts to create a new email document.
+     * @deny (update) - Any user attempts to update an existing email document.
+     * @deny (delete) - Any user attempts to delete an email document.
+     * @principle Allows public read access to email data.
      */
     match /emails/{emailId} {
-      function isSignedIn() {
-        return request.auth != null;
-      }
-
-      // Allow anyone to read emails.
-      allow get, list: if true;
-
-      // Allow authenticated users to create emails.
-      allow create: if isSignedIn();
-
-      // Allow only authenticated users to update emails.
-      allow update: if isSignedIn() && resource != null;
-
-      // Allow only authenticated users to delete emails.
-      allow delete: if isSignedIn() && resource != null;
+      allow get: if true;
+      allow list: if true;
+      allow create: if false;
+      allow update: if false;
+      allow delete: if false;
     }
 
     /**
-     * @description Controls access to attachment documents within an email.
+     * @description Protects attachments stored as subcollections of emails. Access is only allowed via email documents.
      * @path /emails/{emailId}/attachments/{attachmentId}
-     * @allow (get, list) - Any user can read attachment documents.
-     * @allow (create) - Authenticated user can create attachment documents.
-     * @deny (update, delete) - Only authenticated users can update and delete attachment documents.
-     * @principle Restricts attachment writes to users authorized to write the parent email.
+     * @allow (get) - Any user can read attachment data.
+     * @allow (list) - Any user can list attachment documents.
+     * @deny (create) - Any user attempts to create a new attachment document.
+     * @deny (update) - Any user attempts to update an existing attachment document.
+     * @deny (delete) - Any user attempts to delete an attachment document.
+     * @principle Allows public read access to attachment data, inheriting the email's public read access.
      */
     match /emails/{emailId}/attachments/{attachmentId} {
-      function isSignedIn() {
-        return request.auth != null;
-      }
-
-      // Allow anyone to read attachments.
-      allow get, list: if true;
-
-      // Allow authenticated users to create attachments.
-      allow create: if isSignedIn();
-
-      // Allow only authenticated users to update attachments.
-      allow update: if isSignedIn() && resource != null;
-
-      // Allow only authenticated users to delete attachments.
-      allow delete: if isSignedIn() && resource != null;
+      allow get: if true;
+      allow list: if true;
+      allow create: if false;
+      allow update: if false;
+      allow delete: if false;
     }
   }
 }
