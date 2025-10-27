@@ -1,3 +1,4 @@
+
 'use server';
 
 import { ai } from '@/ai/genkit';
@@ -11,6 +12,7 @@ const ProcessEmailInputSchema = z.object({
 const processEmailPrompt = ai.definePrompt(
     {
         name: 'processEmailPrompt',
+        model: 'gemini-pro',
         input: { schema: ProcessEmailInputSchema },
         output: { schema: ExtractedContactInfoSchema },
         prompt: `You are an expert data-entry specialist. Your ONLY job is to extract the raw text content from the following email body. Do not summarize, analyze, or alter the content in any way. Return the full, verbatim text content.
