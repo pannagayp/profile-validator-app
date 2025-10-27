@@ -172,8 +172,10 @@ export async function getAttachmentData(messageId: string, attachmentId: string)
       messageId: messageId,
       id: attachmentId,
     });
-    // The data is base64url encoded. The server action will decode it.
-    return response.result.data;
+    // The data is base64url encoded, convert it to standard base64 for Gemini.
+    const base64UrlData = response.result.data;
+    const base64Data = base64UrlData.replace(/-/g, '+').replace(/_/g, '/');
+    return base64Data;
   } catch (error) {
     console.error('Error fetching attachment data:', error);
     throw new Error('Failed to fetch attachment data.');
