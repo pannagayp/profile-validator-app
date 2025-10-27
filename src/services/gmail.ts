@@ -120,11 +120,10 @@ export async function listMessages(): Promise<Message[]> {
     const subjectHeader = headers.find((h: any) => h.name === 'Subject');
     const dateHeader = headers.find((h: any) => h.name === 'Date');
 
-    const senderEmail =
-      senderHeader.value.match(/<(.*)>/)?.[1] || senderHeader.value;
-    const senderName = senderHeader.value.includes('<')
-      ? senderHeader.value.split('<')[0].trim()
-      : senderEmail;
+    const fromHeader = senderHeader?.value || '';
+    const match = fromHeader.match(/<(.*)>/);
+    const senderEmail = match ? match[1] : fromHeader;
+    const senderName = fromHeader.replace(/<.*>/, '').trim();
 
     detailedMessages.push({
       id: msg.result.id,
@@ -132,7 +131,8 @@ export async function listMessages(): Promise<Message[]> {
       snippet: msg.result.snippet,
       senderName: senderName,
       senderEmail: senderEmail,
-      timestamp: new Date(dateHeader.value).toISOString(),
+      subject: subjectHeader?.value || 'No Subject',
+      timestamp: dateHeader ? new Date(dateHeader.value).toISOString() : new Date().toISOString(),
     });
   }
   return detailedMessages;
