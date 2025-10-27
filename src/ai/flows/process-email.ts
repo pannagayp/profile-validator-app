@@ -6,7 +6,8 @@ import { ExtractedContactInfoSchema } from '@/ai/schemas';
 import { z } from 'genkit';
 
 const ProcessEmailInputSchema = z.object({
-    rawContent: z.string().describe("The full text content extracted from a document like a resume."),
+    attachmentData: z.string().describe("The base64 encoded data of the document file."),
+    mimeType: z.string().describe("The MIME type of the document file (e.g., 'application/pdf').")
 });
 
 export const processEmailFlow = ai.defineFlow(
@@ -16,9 +17,13 @@ export const processEmailFlow = ai.defineFlow(
     outputSchema: ExtractedContactInfoSchema,
   },
   async (input) => {
-    const prompt = `You are an expert data extractor specializing in parsing resumes and contact documents. Your task is to extract specific information from the provided text content.
 
-    From the parsed text, intelligently identify and extract the following information:
+    const model = 'googleai/gemini-1.5-flash';
+    const dataUri = `data:${input.mimeType};base64,${input.attachmentData}`;
+    
+    const prompt = `You are an expert data extractor specializing in parsing resumes and contact documents. Your task is to extract specific information from the provided document.
+
+    From the document, intelligently identify and extract the following information:
     - First Name
     - Last Name
     - Email Address
@@ -27,22 +32,20 @@ export const processEmailFlow = ai.defineFlow(
     - LinkedIn Profile URL
 
     Return the output in the specified JSON format. If any field is missing in the file, return it as "null".
-
-    Extracted Text Content:
-    ---
-    ${input.rawContent}
-    ---
     `;
 
     const { output } = await ai.generate({
-      prompt: prompt,
-      model: 'googleai/gemini-1.5-flash',
+      prompt: [
+        { text: prompt },
+        { media: { url: dataUri } }
+      ],
+      model: model,
       output: {
         schema: ExtractedContactInfoSchema,
       },
     });
     
-    // Also include the raw content in the final output object.
-    return output ? { ...output, rawContent: input.rawContent } : null;
+    // Also include the raw content in the final output object. For multimodal, we don't have raw text, so we'll leave it null.
+    return output ? { ...output, rawContent: null } : null;
   }
 );
