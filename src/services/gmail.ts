@@ -237,7 +237,7 @@ export async function getLatestEmailBody(
 }
 
 
-export async function getAttachmentData(messageId: string, attachmentId: string): Promise<{ mimeType: string, data: string | null }> {
+export async function getAttachmentData(messageId: string): Promise<{ mimeType: string, data: string | null } | null> {
     await waitForGapiInitialized();
 
     const messageResponse = await gapi.client.gmail.users.messages.get({
@@ -247,17 +247,16 @@ export async function getAttachmentData(messageId: string, attachmentId: string)
     });
 
     const payload = messageResponse.result.payload;
-    let targetPart: any = null;
-    let mimeType = 'application/octet-stream';
+    let attachmentPart: any = null;
 
-    // Recursive function to find the attachment part by its ID
-    function findAttachmentPart(parts: any[], id: string): any {
+    // Recursive function to find the first valid attachment part
+    function findFirstAttachment(parts: any[]): any {
         for (const p of parts) {
-            if (p.body?.attachmentId === id) {
+            if (p.filename && p.body?.attachmentId) {
                 return p;
             }
             if (p.parts) {
-                const found = findAttachmentPart(p.parts, id);
+                const found = findFirstAttachment(p.parts);
                 if (found) {
                     return found;
                 }
@@ -266,22 +265,20 @@ export async function getAttachmentData(messageId: string, attachmentId: string)
         return null;
     }
     
-    // Start search from all top-level parts
+    // Start search from all top-level parts or the root payload itself
     if (payload.parts) {
-      targetPart = findAttachmentPart(payload.parts, attachmentId);
-    }
-    
-    // Handle cases where the attachment is on the root payload
-    if (!targetPart && payload.body?.attachmentId === attachmentId) {
-      targetPart = payload;
+        attachmentPart = findFirstAttachment(payload.parts);
+    } else if (payload.filename && payload.body?.attachmentId) {
+        attachmentPart = payload;
     }
 
-    if (!targetPart) {
-      console.error(`Attachment with ID ${attachmentId} not found in message ${messageId}.`);
-      throw new Error(`Attachment with ID ${attachmentId} not found in message ${messageId}.`);
+    if (!attachmentPart) {
+      console.warn(`No valid attachment found in message ${messageId}.`);
+      return null;
     }
     
-    mimeType = targetPart.mimeType;
+    const mimeType = attachmentPart.mimeType;
+    const attachmentId = attachmentPart.body.attachmentId;
 
     try {
         const attachResponse = await gapi.client.gmail.users.messages.attachments.get({
@@ -299,7 +296,7 @@ export async function getAttachmentData(messageId: string, attachmentId: string)
         };
     } catch(err) {
         console.error(`Failed to fetch attachment ${attachmentId} for message ${messageId}`, err);
-        // Return null data on failure so the caller can handle it gracefully
-        return { mimeType, data: null };
+        // Throw a more specific error
+        throw new Error(`Failed to fetch data for attachment ${attachmentId}.`);
     }
 }

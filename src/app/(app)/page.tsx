@@ -97,8 +97,12 @@ export default function HomePage() {
         
       if (attachments.length > 0 && attachments[0].attachmentId) {
           // If there's an attachment, get its data
-          const attachmentData = await getAttachmentData(message.id, attachments[0].attachmentId);
-          dataUri = `data:${attachmentData.mimeType};base64,${attachmentData.data || ''}`;
+          const attachmentData = await getAttachmentData(message.id);
+          if (attachmentData && attachmentData.data) {
+            dataUri = `data:${attachmentData.mimeType};base64,${attachmentData.data}`;
+          } else {
+             dataUri = `data:text/plain;base64,${btoa(body || '')}`;
+          }
       } else {
           // Otherwise, use the email body
           // Create a data URI from the plain text body
