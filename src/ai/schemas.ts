@@ -6,12 +6,6 @@ import { z } from 'genkit';
  */
 
 export const ExtractedContactInfoSchema = z.object({
-  firstName: z.string().nullable().describe('The first name of the contact.'),
-  lastName: z.string().nullable().describe('The last name of the contact.'),
-  email: z.string().email().nullable().describe('The email address of the contact.'),
-  contactNumber: z.string().nullable().describe('The contact phone number.'),
-  experience: z.string().nullable().describe('The years of experience.'),
-  linkedin: z.string().url().nullable().describe('The LinkedIn profile URL of the contact.'),
   rawContent: z.string().nullable().describe('The full raw text extracted from the document.'),
 });
 

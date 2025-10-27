@@ -251,20 +251,16 @@ export default function HomePage() {
                 </CardContent>
                 {processedData && (
                   <CardFooter className="flex-col items-start gap-2">
-                    <h4 className="font-semibold">Extracted Information:</h4>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-2 rounded-md bg-gray-100 p-4 text-sm w-full">
-                      <p><strong>First Name:</strong> {processedData.firstName || 'N/A'}</p>
-                      <p><strong>Last Name:</strong> {processedData.lastName || 'N/A'}</p>
-                      <p><strong>Email:</strong> {processedData.email || 'N/A'}</p>
-                      <p><strong>Contact:</strong> {processedData.contactNumber || 'N/A'}</p>
-                      <p><strong>Experience:</strong> {processedData.experience || 'N/A'}</p>
-                      <p><strong>LinkedIn:</strong> {processedData.linkedin || 'N/A'}</p>
-                    </div>
+                    <h4 className="font-semibold">Extracted Content:</h4>
+                    <pre className="mt-2 w-full whitespace-pre-wrap rounded-md bg-gray-100 p-4 text-sm font-mono">
+                      {processedData.rawContent || 'No content extracted.'}
+                    </pre>
                   </CardFooter>
                 )}
                  {state.error && (
                   <CardFooter>
                     <p className="text-sm text-red-600">{state.error}</p>
+
                   </CardFooter>
                  )}
               </Card>

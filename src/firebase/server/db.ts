@@ -64,7 +64,6 @@ export async function processSingleEmail(input: ProcessEmailInput): Promise<{ su
             mimeType,
         });
 
-        // Always treat the call as a success if the flow returns data, even if it's partial
         revalidatePath('/');
         return { success: true, data: extractedData };
 

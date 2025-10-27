@@ -21,18 +21,7 @@ export const processEmailFlow = ai.defineFlow(
     const model = 'googleai/gemini-1.5-flash';
     const dataUri = `data:${input.mimeType};base64,${input.attachmentData}`;
     
-    const prompt = `You are an expert data extractor specializing in parsing resumes and contact documents. Your task is to extract specific information from the provided document.
-
-    From the document, intelligently identify and extract the following information:
-    - First Name
-    - Last Name
-    - Email Address
-    - Contact Number / Phone
-    - Years of Experience
-    - LinkedIn Profile URL
-
-    Return the output in the specified JSON format. If any field is missing in the file, return it as "null".
-    `;
+    const prompt = `You are an expert data extractor. Your task is to extract all readable text content from the provided document. Return only the text from the document.`;
 
     try {
       const { output } = await ai.generate({
@@ -42,37 +31,18 @@ export const processEmailFlow = ai.defineFlow(
         ],
         model: model,
         output: {
-          schema: ExtractedContactInfoSchema,
+          format: 'text',
         },
       });
       
-      // If output is null or undefined, return a structured object with nulls
-      if (!output) {
-        return {
-          firstName: null,
-          lastName: null,
-          email: null,
-          contactNumber: null,
-          experience: null,
-          linkedin: null,
-          rawContent: null,
-        };
-      }
-
-      // Also include the raw content in the final output object. For multimodal, we don't have raw text, so we'll leave it null.
-      return { ...output, rawContent: null };
+      const rawText = output ?? '';
+      
+      return { rawContent: rawText };
 
     } catch (e) {
       console.error("Error in processEmailFlow:", e);
-      // On any error, return the structured object with nulls to prevent crashes
       return {
-        firstName: null,
-        lastName: null,
-        email: null,
-        contactNumber: null,
-        experience: null,
-        linkedin: null,
-        rawContent: "Error during extraction.",
+        rawContent: "Error: Could not extract text from the document.",
       };
     }
   }
