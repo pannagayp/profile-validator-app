@@ -17,8 +17,7 @@ export const processEmailFlow = ai.defineFlow(
     outputSchema: ExtractedContactInfoSchema,
   },
   async (input) => {
-
-    const model = 'googleai/gemini-1.5-flash';
+    const model = 'gemini-1.5-flash';
     const dataUri = `data:${input.mimeType};base64,${input.attachmentData}`;
     
     const prompt = `You are an expert data extractor. Your task is to extract all readable text content from the provided document. Return only the text from the document.`;
@@ -37,11 +36,13 @@ export const processEmailFlow = ai.defineFlow(
       
       const rawText = output ?? '';
       
+      // We are directly returning the raw text as per the simplified requirement.
       return { rawContent: rawText };
 
     } catch (e) {
       console.error("Error in processEmailFlow:", e);
       return {
+        // Ensure we always return the object structure, even on error.
         rawContent: "Error: Could not extract text from the document.",
       };
     }
