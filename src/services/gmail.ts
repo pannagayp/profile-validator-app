@@ -182,31 +182,24 @@ export async function getLatestEmailBody(
     const response = await gapi.client.gmail.users.messages.get({
       userId: 'me',
       id: messageId,
+      format: 'full', // Important: use full format to get all parts
     });
 
     const payload = response.result.payload;
     let body = '';
     const attachments: Attachment[] = [];
 
-    // This function recursively finds the plain text part.
-    function findTextPart(parts: any[]): string {
-      for (const part of parts) {
-        if (part.mimeType === 'text/plain' && part.body && part.body.data) {
-          return base64UrlDecode(part.body.data);
-        }
-        if (part.parts) {
-          const result = findTextPart(part.parts);
-          if (result) return result;
-        }
-      }
-      return '';
-    }
+    // Recursive function to find parts
+    function findParts(parts: any[]) {
+      if (!parts) return;
 
-    if (payload.parts) {
-      body = findTextPart(payload.parts);
-      
-      // Also collect attachment info
-      for (const part of payload.parts) {
+      for (const part of parts) {
+        // Find text body part
+        if (!body && part.mimeType === 'text/plain' && part.body && part.body.data) {
+          body = base64UrlDecode(part.body.data);
+        }
+
+        // Find attachment parts
         if (part.filename && part.body && part.body.attachmentId) {
           attachments.push({
             filename: part.filename,
@@ -215,7 +208,16 @@ export async function getLatestEmailBody(
             attachmentId: part.body.attachmentId,
           });
         }
+        
+        // Recurse into sub-parts
+        if (part.parts) {
+          findParts(part.parts);
+        }
       }
+    }
+
+    if (payload.parts) {
+      findParts(payload.parts);
     } else if (payload.body && payload.body.data) {
       // This is for simple, non-multipart emails.
       body = base64UrlDecode(payload.body.data);

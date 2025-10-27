@@ -91,19 +91,18 @@ export default function HomePage() {
     setProcessedEmails((prev) => ({ ...prev, [processId]: null }));
 
     try {
-      const { attachments } = await getLatestEmailBody(message.id);
+      const { body, attachments } = await getLatestEmailBody(message.id);
       
       let dataUri = '';
         
       if (attachments.length > 0 && attachments[0].attachmentId) {
           // If there's an attachment, get its data
           const attachmentData = await getAttachmentData(message.id, attachments[0].attachmentId);
-          dataUri = `data:${attachmentData.mimeType};base64,${attachmentData.data}`;
+          dataUri = `data:${attachmentData.mimeType};base64,${attachmentData.data || ''}`;
       } else {
           // Otherwise, use the email body
-          const { body } = await getLatestEmailBody(message.id);
           // Create a data URI from the plain text body
-          dataUri = `data:text/plain;base64,${btoa(body)}`;
+          dataUri = `data:text/plain;base64,${btoa(body || '')}`;
       }
 
       const result = await processSingleEmail({
@@ -119,10 +118,10 @@ export default function HomePage() {
           [processId]: { isProcessing: false, error: result.error },
         }));
       }
-    } catch (err) {
+    } catch (err: any) {
       setProcessingState((prev) => ({
         ...prev,
-        [processId]: { isProcessing: false, error: 'Failed to process email.' },
+        [processId]: { isProcessing: false, error: err.message || 'Failed to process email.' },
       }));
       console.error(err);
     } finally {
