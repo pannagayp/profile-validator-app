@@ -1,10 +1,186 @@
-
 {
-  "entities": {},
+  "entities": {
+    "UserProfile": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "UserProfile",
+      "type": "object",
+      "description": "Represents a user profile with associated contact information and validation status.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the UserProfile entity."
+        },
+        "email": {
+          "type": "string",
+          "description": "The user's email address.",
+          "format": "email"
+        },
+        "firstName": {
+          "type": "string",
+          "description": "The user's first name."
+        },
+        "lastName": {
+          "type": "string",
+          "description": "The user's last name."
+        },
+        "validationStatus": {
+          "type": "string",
+          "description": "The validation status of the user's email (e.g., 'valid', 'invalid', 'pending')."
+        }
+      },
+      "required": [
+        "id",
+        "email",
+        "firstName",
+        "lastName",
+        "validationStatus"
+      ]
+    },
+    "Email": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Email",
+      "type": "object",
+      "description": "Represents an email received, including sender information, attachments, and processing status.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Email entity."
+        },
+        "senderEmail": {
+          "type": "string",
+          "description": "The email address of the sender.",
+          "format": "email"
+        },
+        "senderName": {
+          "type": "string",
+          "description": "The name of the sender."
+        },
+        "timestamp": {
+          "type": "string",
+          "description": "The timestamp when the email was received.",
+          "format": "date-time"
+        },
+        "attachmentIds": {
+          "type": "array",
+          "description": "References to Attachments. (Relationship: Email 1:N Attachment)",
+          "items": {
+            "type": "string"
+          }
+        },
+        "userProfileId": {
+          "type": "string",
+          "description": "Reference to UserProfile. (Relationship: UserProfile 1:N Email). Nullable to handle emails from unregistered users."
+        },
+        "autoReplySent": {
+          "type": "boolean",
+          "description": "Indicates whether an automatic reply was sent to the sender."
+        }
+      },
+      "required": [
+        "id",
+        "senderEmail",
+        "senderName",
+        "timestamp",
+        "attachmentIds",
+        "autoReplySent"
+      ]
+    },
+    "Attachment": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Attachment",
+      "type": "object",
+      "description": "Represents a file attachment from an email, including its name, type, and extracted content.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Attachment entity."
+        },
+        "emailId": {
+          "type": "string",
+          "description": "Reference to Email. (Relationship: Email 1:N Attachment)"
+        },
+        "fileName": {
+          "type": "string",
+          "description": "The name of the attached file."
+        },
+        "fileType": {
+          "type": "string",
+          "description": "The type of the attached file (e.g., 'pdf', 'doc', 'xlsx')."
+        },
+        "extractedContent": {
+          "type": "string",
+          "description": "The extracted text content from the attachment."
+        }
+      },
+      "required": [
+        "id",
+        "emailId",
+        "fileName",
+        "fileType"
+      ]
+    }
+  },
   "auth": {
-    "providers": []
+    "providers": [
+      "password",
+      "anonymous"
+    ]
   },
   "firestore": {
-    "collections": []
+    "structure": [
+      {
+        "path": "/userProfiles/{userProfileId}",
+        "definition": {
+          "entityName": "UserProfile",
+          "schema": {
+            "$ref": "#/backend/entities/UserProfile"
+          },
+          "description": "Stores user profile information. The 'userProfileId' is the unique identifier for the user.",
+          "params": [
+            {
+              "name": "userProfileId",
+              "description": "Unique identifier for the user profile."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/emails/{emailId}",
+        "definition": {
+          "entityName": "Email",
+          "schema": {
+            "$ref": "#/backend/entities/Email"
+          },
+          "description": "Stores email data, including sender information, timestamp, and references to attachments. Includes a nullable reference to `userProfileId`.",
+          "params": [
+            {
+              "name": "emailId",
+              "description": "Unique identifier for the email."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/emails/{emailId}/attachments/{attachmentId}",
+        "definition": {
+          "entityName": "Attachment",
+          "schema": {
+            "$ref": "#/backend/entities/Attachment"
+          },
+          "description": "Stores attachment metadata and extracted content.  The 'attachmentId' is the unique identifier for each attachment associated with an email.",
+          "params": [
+            {
+              "name": "emailId",
+              "description": "Unique identifier for the email."
+            },
+            {
+              "name": "attachmentId",
+              "description": "Unique identifier for the attachment."
+            }
+          ]
+        }
+      }
+    ],
+    "reasoning": "The Firestore structure is designed to manage user profiles, emails, and attachments in a secure and scalable manner, ensuring authorization independence. The core concept is to enable processing incoming emails, extract data from attachments, and manage user profiles. The structure promotes clear security rules and facilitates efficient queries. Authorization Independence is achieved through the design of the `emails` collection which holds a nullable reference to `userProfileId`. \n\nThe data model assumes an automated system triggered by new email arrivals. If the email sender is a known `UserProfile`, associated attachment content is extracted. If the sender is unknown, an auto-reply is triggered. The system's primary data flow involves ingesting new emails and processing file attachments.\n\n**QAPs (Rules are not Filters):** The `userProfiles` collection stores the profiles while the `emails` collection manages emails with links to attachments. This segregation allows listing emails securely, as validation status and other profile data are stored separately in the user profile.\n"
   }
 }
