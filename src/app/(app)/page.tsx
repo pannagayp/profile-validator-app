@@ -10,7 +10,6 @@ import {
   Message,
   Attachment,
   filterMessagesByRegisteredSenders,
-  getAttachmentData,
 } from '@/services/gmail';
 import { processSingleEmail } from '@/firebase/server/db';
 import { Button } from '@/components/ui/button';
@@ -91,13 +90,12 @@ export default function HomePage() {
     setProcessedEmails((prev) => ({ ...prev, [processId]: null }));
 
     try {
-      // Get the email body text
-      const { body } = await getLatestEmailBody(message.id);
-
-      // Pass the email body to the server action for processing
+      const { attachments } = await getLatestEmailBody(message.id);
+      
       const result = await processSingleEmail({
         senderEmail: message.senderEmail,
-        emailBody: body,
+        messageId: message.id,
+        attachmentId: attachments.length > 0 ? attachments[0].attachmentId : undefined,
       });
 
       if (result.success && result.data) {
@@ -228,13 +226,13 @@ export default function HomePage() {
                       onClick={() => onEmailSubmit(message)}
                       disabled={state.isProcessing}
                     >
-                      {state.isProcessing ? 'Processing Email...' : 'Process Email Body'}
+                      {state.isProcessing ? 'Processing...' : 'Process Content'}
                     </Button>
                   </div>
                 </CardContent>
                 {processedData && (
                   <CardFooter className="flex-col items-start gap-2">
-                    <h4 className="font-semibold">Extracted Content from Body:</h4>
+                    <h4 className="font-semibold">Extracted Content:</h4>
                     <pre className="mt-2 w-full whitespace-pre-wrap rounded-md bg-gray-100 p-4 text-sm font-mono">
                       {processedData.rawContent || 'No content extracted.'}
                     </pre>

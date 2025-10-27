@@ -6,14 +6,15 @@ import { revalidatePath } from 'next/cache';
 import { collection, query, where, getDocs, getFirestore } from 'firebase/firestore';
 import { processEmailFlow } from '@/ai/flows/process-email';
 import { ExtractedContactInfo } from '@/ai/schemas';
-
+import { getLatestEmailBody, getAttachmentData } from '@/services/gmail';
 import { firebaseConfig } from '@/firebase/config';
 import { initializeApp, getApps, getApp, type FirebaseApp } from 'firebase/app';
 
-// Schema now expects the email body text instead of attachment data
+// Schema for processing an email, prioritizing attachment over body
 const processEmailSchema = z.object({
     senderEmail: z.string().email(),
-    emailBody: z.string().optional(),
+    messageId: z.string(),
+    attachmentId: z.string().optional(),
 });
 
 type ProcessEmailInput = z.infer<typeof processEmailSchema>;
@@ -43,7 +44,7 @@ export async function processSingleEmail(input: ProcessEmailInput): Promise<{ su
         return { success: false, error: "Invalid input provided." };
     }
 
-    const { senderEmail, emailBody } = parsedInput.data;
+    const { senderEmail, messageId, attachmentId } = parsedInput.data;
 
     try {
         const clientsRef = collection(firestore, 'client');
@@ -54,17 +55,27 @@ export async function processSingleEmail(input: ProcessEmailInput): Promise<{ su
             return { success: false, error: 'Sender is not registered in the database.' };
         }
         
-        // Pass the email body to the AI flow
-        const extractedData = await processEmailFlow({ 
-            emailBody: emailBody || '',
-        });
+        let dataUri = '';
+        
+        if (attachmentId) {
+            // If there's an attachment, get its data
+            const attachmentData = await getAttachmentData(messageId, attachmentId);
+            dataUri = `data:${attachmentData.mimeType};base64,${attachmentData.data}`;
+        } else {
+            // Otherwise, use the email body
+            const { body } = await getLatestEmailBody(messageId);
+            // Create a data URI from the plain text body
+            dataUri = `data:text/plain;base64,${btoa(body)}`;
+        }
+
+        const extractedData = await processEmailFlow({ dataUri });
 
         revalidatePath('/');
         return { success: true, data: extractedData };
 
     } catch (e: any) {
         console.error("Error processing email action:", e);
-        if (typeof e === 'object' && e !== null && typeof e.code === 'string' && e.code.startsWith('permission-denied')) {
+        if (e && typeof e.code === 'string' && e.code.startsWith('permission-denied')) {
             return { success: false, error: "Database permission error. Check your Firestore rules."}
         }
         return { success: false, error: e.message || "An unexpected error occurred while processing the email." };

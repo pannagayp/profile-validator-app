@@ -233,4 +233,44 @@ export async function getLatestEmailBody(
   }
 }
 
-export { Message, Attachment };
+export async function getAttachmentData(messageId: string, attachmentId: string): Promise<{ mimeType: string, data: string }> {
+    await waitForGapiInitialized();
+    const response = await gapi.client.gmail.users.messages.attachments.get({
+        userId: 'me',
+        messageId: messageId,
+        id: attachmentId,
+    });
+
+    const messageResponse = await gapi.client.gmail.users.messages.get({
+        userId: 'me',
+        id: messageId,
+    });
+
+    const payload = messageResponse.result.payload;
+    
+    const findAttachmentPart = (parts: any[]): any | null => {
+        for (const part of parts) {
+            if (part.body && part.body.attachmentId === attachmentId) {
+                return part;
+            }
+            if (part.parts) {
+                const foundPart = findAttachmentPart(part.parts);
+                if (foundPart) {
+                    return foundPart;
+                }
+            }
+        }
+        return null;
+    };
+    
+    const part = payload.parts ? findAttachmentPart(payload.parts) : null;
+    
+    if (!part) {
+        throw new Error('Could not find attachment part to determine mimeType');
+    }
+
+    return {
+        mimeType: part.mimeType,
+        data: response.result.data.replace(/-/g, '+').replace(/_/g, '/')
+    };
+}
