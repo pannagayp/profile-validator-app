@@ -242,34 +242,28 @@ export async function getAttachmentData(messageId: string, attachmentId: string)
 
     const payload = messageResponse.result.payload;
     
-    // Recursive function to find the attachment part in the email's payload
-    const findAttachmentPart = (parts: any[]): any | null => {
-      for (const part of parts) {
-        if (part.body && part.body.attachmentId === attachmentId) {
-          return part;
+    const findAttachmentPart = (parts: any[], attachmentId: string): any | null => {
+        if (!parts) return null;
+        for (const part of parts) {
+            if (part.body?.attachmentId === attachmentId) {
+                return part;
+            }
+            if (part.parts) {
+                const found = findAttachmentPart(part.parts, attachmentId);
+                if (found) return found;
+            }
         }
-        if (part.parts) {
-          const foundPart = findAttachmentPart(part.parts);
-          if (foundPart) {
-            return foundPart;
-          }
-        }
-      }
-      return null;
+        return null;
     };
     
-    let part = null;
-    if (payload.parts) {
-      part = findAttachmentPart(payload.parts);
-    }
+    let part = findAttachmentPart(payload.parts, attachmentId);
     
+    if (!part && payload.body?.attachmentId === attachmentId) {
+        part = payload;
+    }
+
     if (!part) {
-        // Fallback for non-multipart emails or attachments at the top level
-        if (payload.body && payload.body.attachmentId === attachmentId) {
-            part = payload;
-        } else {
-            throw new Error('Could not find attachment part to determine mimeType');
-        }
+        throw new Error('Could not find attachment part to determine mimeType');
     }
     
     const response = await gapi.client.gmail.users.messages.attachments.get({
