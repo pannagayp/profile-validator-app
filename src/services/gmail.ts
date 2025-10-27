@@ -239,52 +239,56 @@ export async function getLatestEmailBody(
 export async function getAttachmentData(messageId: string, attachmentId: string): Promise<{ mimeType: string, data: string }> {
     await waitForGapiInitialized();
 
-    try {
-        const attachResponse = await gapi.client.gmail.users.messages.attachments.get({
-          userId: 'me',
-          messageId: messageId,
-          id: attachmentId,
-        });
+    const messageResponse = await gapi.client.gmail.users.messages.get({
+        userId: 'me',
+        id: messageId,
+        format: 'full'
+    });
 
-        const messageResponse = await gapi.client.gmail.users.messages.get({
-            userId: 'me',
-            id: messageId,
-            format: 'full'
-        });
+    const payload = messageResponse.result.payload;
+    let part;
+    let mimeType = 'application/octet-stream';
 
-        const payload = messageResponse.result.payload;
-        let mimeType = 'application/octet-stream'; // Default MIME type
-
-        function findAttachmentMimeType(parts: any[], id: string): string | null {
-            if (!parts) return null;
-            for (const part of parts) {
-                if (part.body?.attachmentId === id) {
-                    return part.mimeType;
-                }
-                if (part.parts) {
-                    const foundMimeType = findAttachmentMimeType(part.parts, id);
-                    if (foundMimeType) return foundMimeType;
+    function findAttachmentPart(parts: any[], id: string): any {
+        for (const p of parts) {
+            if (p.body?.attachmentId === id) {
+                return p;
+            }
+            if (p.parts) {
+                const found = findAttachmentPart(p.parts, id);
+                if (found) {
+                    return found;
                 }
             }
-            return null;
         }
-
-        if (payload.parts) {
-            const foundMimeType = findAttachmentMimeType(payload.parts, attachmentId);
-            if (foundMimeType) {
-                mimeType = foundMimeType;
-            }
-        }
-        
-        // The data is returned in base64url format, convert it to standard base64
-        const base64Data = attachResponse.result.data.replace(/-/g, '+').replace(/_/g, '/');
-
-        return {
-            mimeType: mimeType,
-            data: base64Data
-        };
-    } catch (error: any) {
-        console.error('Error fetching attachment data:', error);
-        throw new Error(`Failed to get attachment with ID ${attachmentId}.`);
+        return null;
     }
+
+    // Start search from all top-level parts
+    if (payload.parts) {
+        part = findAttachmentPart(payload.parts, attachmentId);
+    }
+
+    if (!part && payload.body?.attachmentId === attachmentId) {
+      part = payload;
+    }
+
+    if (!part) {
+        throw new Error(`Attachment with ID ${attachmentId} not found in message ${messageId}.`);
+    }
+
+    mimeType = part.mimeType;
+
+    const attachResponse = await gapi.client.gmail.users.messages.attachments.get({
+        userId: 'me',
+        messageId: messageId,
+        id: attachmentId,
+    });
+
+    const base64Data = attachResponse.result.data.replace(/-/g, '+').replace(/_/g, '/');
+
+    return {
+        mimeType: mimeType,
+        data: base64Data
+    };
 }
