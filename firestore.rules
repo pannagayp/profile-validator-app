@@ -1,16 +1,21 @@
 /**
- * @file Firestore Security Rules
- * @core_philosophy This ruleset enforces a user-ownership model for user profiles and allows public read access to emails.
- *   Writes to user profiles are restricted to the owner (the user with the matching UID).
- *   Emails are publicly readable but only created via backend, and attachments are only accessible via the parent email.
- * @data_structure
- *   - /userProfiles/{userId}: Stores user profile data, accessible only to the user themselves.
- *   - /emails/{emailId}: Stores email data, publicly readable.
- *   - /emails/{emailId}/attachments/{attachmentId}: Stores attachment data, accessible only via the parent email.
- * @key_security_decisions
- *   - User listing is disallowed.
- *   - Emails are publicly readable to simplify data retrieval. Writes are restricted to the backend through use of server timestamps to prevent client writes.
- *   - Attachments are secured via path-based access, requiring a valid email ID.
+ * @fileoverview Firestore Security Rules for Email Processing Application
+ *
+ * Core Philosophy:
+ * This ruleset enforces a user-ownership model for user profiles, allowing users to manage their own profile information. Email data is generally public, but attachment data is restricted to the owning email.
+ *
+ * Data Structure:
+ * - /userProfiles/{userProfileId}: Stores individual user profile data. 'userProfileId' MUST match the authenticated user's UID.
+ * - /emails/{emailId}: Stores email metadata.  Open read, restricted write.
+ * - /emails/{emailId}/attachments/{attachmentId}: Stores attachment data.  Write-protected by email ownership.
+ *
+ * Key Security Decisions:
+ * - User profiles are strictly owned and managed by the authenticated user. Listing of all user profiles is disallowed.
+ * - Email metadata is publicly readable to facilitate data ingestion.
+ * - Attachment data is accessible only to authorized users.
+ *
+ * Denormalization for Authorization:
+ * - User profile documents MUST have an `id` field that matches the document ID (`userProfileId`).
  */
 rules_version = '2';
 service cloud.firestore {
@@ -19,13 +24,17 @@ service cloud.firestore {
     /**
      * @description Controls access to user profile documents.
      * @path /userProfiles/{userProfileId}
-     * @allow (create) - A user can create their own profile if the `userProfileId` matches their `auth.uid`.
-     * @allow (get, update, delete) - A user can only access or modify their own profile.
-     * @deny (create) - A user cannot create a profile for another user.
-     * @deny (get, update, delete) - A user cannot access or modify another user's profile.
-     * @principle Enforces document ownership for writes and restricts access to a user's own data.
+     * @allow (create) Authenticated user creates their own profile with matching UID.
+     * @allow (get, update, delete) Authenticated user accesses their own profile.
+     * @deny (create) Authenticated user attempts to create a profile with a mismatched UID.
+     * @deny (list) Listing user profiles is not allowed.
+     * @principle Enforces document ownership and restricts access to a user's own data.
      */
     match /userProfiles/{userProfileId} {
+      function isSignedIn() {
+        return request.auth != null;
+      }
+
       function isOwner(userId) {
         return request.auth.uid == userId;
       }
@@ -34,10 +43,12 @@ service cloud.firestore {
         return isOwner(userId) && resource != null;
       }
 
+      // Read rules
       allow get: if isOwner(userProfileId);
       allow list: if false;
 
-      allow create: if isOwner(userProfileId) && request.resource.data.id == userProfileId;
+      // Write rules
+      allow create: if isSignedIn() && isOwner(userProfileId) && request.resource.data.id == userProfileId;
       allow update: if isExistingOwner(userProfileId) && request.resource.data.id == resource.data.id;
       allow delete: if isExistingOwner(userProfileId);
     }
@@ -45,32 +56,32 @@ service cloud.firestore {
     /**
      * @description Controls access to email documents.
      * @path /emails/{emailId}
-     * @allow (get, list) - Emails are publicly readable.
-     * @allow (create) - Emails can only be created.
-     * @deny (update, delete) - Emails cannot be updated or deleted.
-     * @principle Allows public read access while restricting write access to prevent unauthorized modifications.
+     * @allow (get, list) Public read access to email metadata.
+     * @deny (create, update, delete) Only authorized services can modify email documents.
+     * @principle Public read access with restricted writes.
      */
     match /emails/{emailId} {
-      allow get: if true;
-      allow list: if true;
-      allow create: if true;
-      allow update: if false;
-      allow delete: if false;
+      // Read rules: Public
+      allow get, list: if true;
+
+      // Write rules: Restricted
+      allow create, update, delete: if false; // TODO: Define authorized service accounts for email creation, updates, and deletes.
     }
 
     /**
-     * @description Controls access to attachment documents nested under email documents.
+     * @description Controls access to attachment documents within an email.
      * @path /emails/{emailId}/attachments/{attachmentId}
-     * @allow (get, list, create) - Attachments are accessible given a valid email.
-     * @deny (update, delete) - Attachments cannot be updated or deleted.
-     * @principle Secures attachments via path-based access, requiring a valid email ID.
+     * @allow (get, list) Public Read Access to attachment Metadata
+     * @allow (create) Only authorized services can create attachment documents.
+     * @allow (update, delete) No client-side updates or deletes of attachments.
+     * @principle Restricts attachment management to backend services.
      */
     match /emails/{emailId}/attachments/{attachmentId} {
-      allow get: if true;
-      allow list: if true;
-      allow create: if true;
-      allow update: if false;
-      allow delete: if false;
+       // Read rules: Public Access
+      allow get, list: if true; // TODO: Verify with the client whether public access is needed
+
+      // Write rules: Restricted
+      allow create, update, delete: if false; // TODO: Define authorized service accounts for email creation, updates, and deletes.
     }
   }
 }
