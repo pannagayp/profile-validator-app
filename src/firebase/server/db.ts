@@ -10,11 +10,10 @@ import { ExtractedContactInfo } from '@/ai/schemas';
 import { firebaseConfig } from '@/firebase/config';
 import { initializeApp, getApps, getApp, type FirebaseApp } from 'firebase/app';
 
+// Schema now expects the email body text instead of attachment data
 const processEmailSchema = z.object({
     senderEmail: z.string().email(),
-    attachmentId: z.string().optional(),
-    attachmentData: z.string().optional(), // Base64 encoded attachment data
-    mimeType: z.string().optional(),
+    emailBody: z.string().optional(),
 });
 
 type ProcessEmailInput = z.infer<typeof processEmailSchema>;
@@ -44,7 +43,7 @@ export async function processSingleEmail(input: ProcessEmailInput): Promise<{ su
         return { success: false, error: "Invalid input provided." };
     }
 
-    const { senderEmail, attachmentData, mimeType } = parsedInput.data;
+    const { senderEmail, emailBody } = parsedInput.data;
 
     try {
         const clientsRef = collection(firestore, 'client');
@@ -55,13 +54,9 @@ export async function processSingleEmail(input: ProcessEmailInput): Promise<{ su
             return { success: false, error: 'Sender is not registered in the database.' };
         }
         
-        if (!attachmentData || !mimeType) {
-            return { success: false, error: 'No attachment provided for processing.' };
-        }
-
+        // Pass the email body to the AI flow
         const extractedData = await processEmailFlow({ 
-            attachmentData,
-            mimeType,
+            emailBody: emailBody || '',
         });
 
         revalidatePath('/');

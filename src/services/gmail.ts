@@ -164,24 +164,6 @@ export async function filterMessagesByRegisteredSenders(
   }
 }
 
-export async function getAttachmentData(messageId: string, attachmentId: string): Promise<string> {
-  await waitForGapiInitialized();
-  try {
-    const response = await gapi.client.gmail.users.messages.attachments.get({
-      userId: 'me',
-      messageId: messageId,
-      id: attachmentId,
-    });
-    // The data is base64url encoded, convert it to standard base64 for Gemini.
-    const base64UrlData = response.result.data;
-    const base64Data = base64UrlData.replace(/-/g, '+').replace(/_/g, '/');
-    return base64Data;
-  } catch (error) {
-    console.error('Error fetching attachment data:', error);
-    throw new Error('Failed to fetch attachment data.');
-  }
-}
-
 function base64UrlDecode(input: string): string {
   let base64 = input.replace(/-/g, '+').replace(/_/g, '/');
   let pad = base64.length % 4;
@@ -206,14 +188,24 @@ export async function getLatestEmailBody(
     let body = '';
     const attachments: Attachment[] = [];
 
-    if (payload.parts) {
-      const textPart = payload.parts.find(
-        (part) => part.mimeType === 'text/plain'
-      );
-      if (textPart && textPart.body && textPart.body.data) {
-        body = base64UrlDecode(textPart.body.data);
+    // This function recursively finds the plain text part.
+    function findTextPart(parts: any[]): string {
+      for (const part of parts) {
+        if (part.mimeType === 'text/plain' && part.body && part.body.data) {
+          return base64UrlDecode(part.body.data);
+        }
+        if (part.parts) {
+          const result = findTextPart(part.parts);
+          if (result) return result;
+        }
       }
+      return '';
+    }
 
+    if (payload.parts) {
+      body = findTextPart(payload.parts);
+      
+      // Also collect attachment info
       for (const part of payload.parts) {
         if (part.filename && part.body && part.body.attachmentId) {
           attachments.push({
@@ -225,7 +217,13 @@ export async function getLatestEmailBody(
         }
       }
     } else if (payload.body && payload.body.data) {
+      // This is for simple, non-multipart emails.
       body = base64UrlDecode(payload.body.data);
+    }
+    
+    // If body is still empty, fallback to the snippet.
+    if (!body) {
+      body = response.result.snippet || '';
     }
 
     return { body, attachments };

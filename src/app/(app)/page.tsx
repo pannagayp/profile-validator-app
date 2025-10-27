@@ -7,7 +7,6 @@ import {
   handleSignIn,
   listMessages,
   getLatestEmailBody,
-  getAttachmentData,
   Message,
   Attachment,
   filterMessagesByRegisteredSenders,
@@ -30,11 +29,6 @@ import {
 import { type ExtractedContactInfo } from '@/ai/schemas';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
-const SUPPORTED_ATTACHMENT_TYPES = [
-  'application/pdf',
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-];
 
 export default function HomePage() {
   const [isSignedIn, setIsSignedIn] = useState(false);
@@ -71,7 +65,7 @@ export default function HomePage() {
       const filteredMessages = await filterMessagesByRegisteredSenders(fetchedMessages);
       setMessages(filteredMessages);
 
-      // After fetching messages, fetch their attachments
+      // After fetching messages, fetch their attachments for display
       const newAttachments: Record<string, Attachment[]> = {};
       for (const message of filteredMessages) {
         const { attachments } = await getLatestEmailBody(message.id);
@@ -88,7 +82,7 @@ export default function HomePage() {
   };
 
   const onEmailSubmit = async (message: Message) => {
-    const processId = message.id; // Can be a message ID or attachment ID
+    const processId = message.id;
     setProcessingState((prev) => ({
       ...prev,
       [processId]: { isProcessing: true, error: undefined },
@@ -96,25 +90,13 @@ export default function HomePage() {
     setProcessedEmails((prev) => ({ ...prev, [processId]: null }));
 
     try {
-      const messageAttachments = attachments[message.id] || [];
-      const supportedAttachment = messageAttachments.find(att => SUPPORTED_ATTACHMENT_TYPES.includes(att.mimeType));
+      // Get the email body text
+      const { body } = await getLatestEmailBody(message.id);
 
-      if (!supportedAttachment) {
-        setProcessingState((prev) => ({
-          ...prev,
-          [processId]: { isProcessing: false, error: 'No supported attachment (PDF, DOCX, XLSX) found.' },
-        }));
-        return;
-      }
-
-      // Fetch attachment data as base64 string
-      const attachmentData = await getAttachmentData(message.id, supportedAttachment.attachmentId);
-
+      // Pass the email body to the server action for processing
       const result = await processSingleEmail({
         senderEmail: message.senderEmail,
-        attachmentId: supportedAttachment.attachmentId,
-        attachmentData: attachmentData,
-        mimeType: supportedAttachment.mimeType,
+        emailBody: body,
       });
 
       if (result.success && result.data) {
@@ -128,7 +110,7 @@ export default function HomePage() {
     } catch (err) {
       setProcessingState((prev) => ({
         ...prev,
-        [processId]: { isProcessing: false, error: 'Failed to process email attachment.' },
+        [processId]: { isProcessing: false, error: 'Failed to process email.' },
       }));
       console.error(err);
     } finally {
@@ -245,13 +227,13 @@ export default function HomePage() {
                       onClick={() => onEmailSubmit(message)}
                       disabled={state.isProcessing}
                     >
-                      {state.isProcessing ? 'Processing Attachment...' : 'Process Attachment'}
+                      {state.isProcessing ? 'Processing Email...' : 'Process Email Body'}
                     </Button>
                   </div>
                 </CardContent>
                 {processedData && (
                   <CardFooter className="flex-col items-start gap-2">
-                    <h4 className="font-semibold">Extracted Content:</h4>
+                    <h4 className="font-semibold">Extracted Content from Body:</h4>
                     <pre className="mt-2 w-full whitespace-pre-wrap rounded-md bg-gray-100 p-4 text-sm font-mono">
                       {processedData.rawContent || 'No content extracted.'}
                     </pre>

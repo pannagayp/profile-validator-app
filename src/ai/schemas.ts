@@ -5,8 +5,9 @@ import { z } from 'genkit';
  * @fileOverview Shared schemas and types for AI flows.
  */
 
+// Simplified schema to just hold the raw text content.
 export const ExtractedContactInfoSchema = z.object({
-  rawContent: z.string().nullable().describe('The full raw text extracted from the document.'),
+  rawContent: z.string().nullable().describe('The full raw text extracted from the document or email body.'),
 });
 
 export type ExtractedContactInfo = z.infer<typeof ExtractedContactInfoSchema>;
