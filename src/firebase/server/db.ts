@@ -8,6 +8,8 @@ import { processEmailFlow } from '@/ai/flows/process-email';
 import { ExtractedContactInfo } from '@/ai/schemas';
 import { firebaseConfig } from '@/firebase/config';
 import { initializeApp, getApps, getApp, type FirebaseApp } from 'firebase/app';
+import pdf from 'pdf-parse';
+import mammoth from 'mammoth';
 
 // Schema for processing an email, prioritizing attachment over body
 const processEmailSchema = z.object({
@@ -33,6 +35,33 @@ function getSdks(firebaseApp: FirebaseApp) {
 }
 
 
+async function extractTextFromDataUri(dataUri: string): Promise<string> {
+    const [header, base64Data] = dataUri.split(',');
+    if (!header || !base64Data) {
+        throw new Error('Invalid Data URI');
+    }
+
+    const mimeTypeMatch = header.match(/data:(.*?);/);
+    if (!mimeTypeMatch) {
+        throw new Error('Could not determine MIME type from Data URI');
+    }
+    const mimeType = mimeTypeMatch[1];
+    const buffer = Buffer.from(base64Data, 'base64');
+
+    if (mimeType === 'application/pdf') {
+        const data = await pdf(buffer);
+        return data.text;
+    } else if (mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
+        const { value } = await mammoth.extractRawText({ buffer });
+        return value;
+    } else if (mimeType.startsWith('text/')) {
+        return buffer.toString('utf-8');
+    } else {
+        throw new Error(`Unsupported MIME type for extraction: ${mimeType}`);
+    }
+}
+
+
 export async function processSingleEmail(input: ProcessEmailInput): Promise<{ success: boolean; data?: ExtractedContactInfo; error?: string }> {
     const app = initializeFirebaseOnServer();
     const { firestore } = getSdks(app);
@@ -53,7 +82,9 @@ export async function processSingleEmail(input: ProcessEmailInput): Promise<{ su
             return { success: false, error: 'Sender is not registered in the database.' };
         }
         
-        const extractedData = await processEmailFlow({ dataUri });
+        const rawContent = await extractTextFromDataUri(dataUri);
+        
+        const extractedData = await processEmailFlow({ rawContent });
 
         revalidatePath('/');
         return { success: true, data: extractedData };
