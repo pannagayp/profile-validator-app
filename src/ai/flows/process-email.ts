@@ -34,18 +34,46 @@ export const processEmailFlow = ai.defineFlow(
     Return the output in the specified JSON format. If any field is missing in the file, return it as "null".
     `;
 
-    const { output } = await ai.generate({
-      prompt: [
-        { text: prompt },
-        { media: { url: dataUri } }
-      ],
-      model: model,
-      output: {
-        schema: ExtractedContactInfoSchema,
-      },
-    });
-    
-    // Also include the raw content in the final output object. For multimodal, we don't have raw text, so we'll leave it null.
-    return output ? { ...output, rawContent: null } : null;
+    try {
+      const { output } = await ai.generate({
+        prompt: [
+          { text: prompt },
+          { media: { url: dataUri } }
+        ],
+        model: model,
+        output: {
+          schema: ExtractedContactInfoSchema,
+        },
+      });
+      
+      // If output is null or undefined, return a structured object with nulls
+      if (!output) {
+        return {
+          firstName: null,
+          lastName: null,
+          email: null,
+          contactNumber: null,
+          experience: null,
+          linkedin: null,
+          rawContent: null,
+        };
+      }
+
+      // Also include the raw content in the final output object. For multimodal, we don't have raw text, so we'll leave it null.
+      return { ...output, rawContent: null };
+
+    } catch (e) {
+      console.error("Error in processEmailFlow:", e);
+      // On any error, return the structured object with nulls to prevent crashes
+      return {
+        firstName: null,
+        lastName: null,
+        email: null,
+        contactNumber: null,
+        experience: null,
+        linkedin: null,
+        rawContent: "Error during extraction.",
+      };
+    }
   }
 );

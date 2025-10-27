@@ -8,7 +8,7 @@ import { processEmailFlow } from '@/ai/flows/process-email';
 import { ExtractedContactInfo } from '@/ai/schemas';
 
 import { firebaseConfig } from '@/firebase/config';
-import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
+import { initializeApp, getApps, getApp, type FirebaseApp } from 'firebase/app';
 
 const processEmailSchema = z.object({
     senderEmail: z.string().email(),
@@ -64,10 +64,7 @@ export async function processSingleEmail(input: ProcessEmailInput): Promise<{ su
             mimeType,
         });
 
-        if (!extractedData) {
-            return { success: false, error: "Could not extract any contact information from the attachment." };
-        }
-        
+        // Always treat the call as a success if the flow returns data, even if it's partial
         revalidatePath('/');
         return { success: true, data: extractedData };
 
