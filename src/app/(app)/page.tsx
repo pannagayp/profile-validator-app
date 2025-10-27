@@ -25,7 +25,7 @@ import {
 import {
   ArrowPathIcon,
   ExclamationCircleIcon,
-  PaperclipIcon,
+  PaperClipIcon,
 } from '@heroicons/react/24/outline';
 import { type ExtractedContactInfo } from '@/ai/schemas';
 
@@ -232,7 +232,7 @@ export default function HomePage() {
                         <div className="flex flex-wrap gap-2">
                         {messageAttachments.map(att => (
                             <div key={att.attachmentId} className="flex items-center gap-2 text-sm bg-gray-100 p-2 rounded-md">
-                                <PaperclipIcon className="h-4 w-4 text-gray-500" />
+                                <PaperClipIcon className="h-4 w-4 text-gray-500" />
                                 <span>{att.filename}</span>
                                 <span className="text-gray-500">({(att.size / 1024).toFixed(2)} KB)</span>
                             </div>
