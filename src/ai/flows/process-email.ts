@@ -34,7 +34,7 @@ export const processEmailFlow = ai.defineFlow(
                 prompt: `You are an expert data-entry specialist. Your job is to extract all readable text, tables, and key information from the uploaded file content. The content is provided as a data URI. Return the full, verbatim text content you extract.
 
 Content to process: {{media url=${input.dataUri}}}`,
-                model: ai.model(modelName),
+                model: modelName,
                 output: {
                     schema: ExtractedContactInfoSchema,
                 },
