@@ -6,15 +6,13 @@ import { revalidatePath } from 'next/cache';
 import { collection, query, where, getDocs, getFirestore } from 'firebase/firestore';
 import { processEmailFlow } from '@/ai/flows/process-email';
 import { ExtractedContactInfo } from '@/ai/schemas';
-import { getLatestEmailBody, getAttachmentData } from '@/services/gmail';
 import { firebaseConfig } from '@/firebase/config';
 import { initializeApp, getApps, getApp, type FirebaseApp } from 'firebase/app';
 
 // Schema for processing an email, prioritizing attachment over body
 const processEmailSchema = z.object({
     senderEmail: z.string().email(),
-    messageId: z.string(),
-    attachmentId: z.string().optional(),
+    dataUri: z.string(),
 });
 
 type ProcessEmailInput = z.infer<typeof processEmailSchema>;
@@ -44,7 +42,7 @@ export async function processSingleEmail(input: ProcessEmailInput): Promise<{ su
         return { success: false, error: "Invalid input provided." };
     }
 
-    const { senderEmail, messageId, attachmentId } = parsedInput.data;
+    const { senderEmail, dataUri } = parsedInput.data;
 
     try {
         const clientsRef = collection(firestore, 'client');
@@ -55,19 +53,6 @@ export async function processSingleEmail(input: ProcessEmailInput): Promise<{ su
             return { success: false, error: 'Sender is not registered in the database.' };
         }
         
-        let dataUri = '';
-        
-        if (attachmentId) {
-            // If there's an attachment, get its data
-            const attachmentData = await getAttachmentData(messageId, attachmentId);
-            dataUri = `data:${attachmentData.mimeType};base64,${attachmentData.data}`;
-        } else {
-            // Otherwise, use the email body
-            const { body } = await getLatestEmailBody(messageId);
-            // Create a data URI from the plain text body
-            dataUri = `data:text/plain;base64,${btoa(body)}`;
-        }
-
         const extractedData = await processEmailFlow({ dataUri });
 
         revalidatePath('/');

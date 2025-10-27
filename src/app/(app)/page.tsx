@@ -7,6 +7,7 @@ import {
   handleSignIn,
   listMessages,
   getLatestEmailBody,
+  getAttachmentData,
   Message,
   Attachment,
   filterMessagesByRegisteredSenders,
@@ -92,10 +93,22 @@ export default function HomePage() {
     try {
       const { attachments } = await getLatestEmailBody(message.id);
       
+      let dataUri = '';
+        
+      if (attachments.length > 0 && attachments[0].attachmentId) {
+          // If there's an attachment, get its data
+          const attachmentData = await getAttachmentData(message.id, attachments[0].attachmentId);
+          dataUri = `data:${attachmentData.mimeType};base64,${attachmentData.data}`;
+      } else {
+          // Otherwise, use the email body
+          const { body } = await getLatestEmailBody(message.id);
+          // Create a data URI from the plain text body
+          dataUri = `data:text/plain;base64,${btoa(body)}`;
+      }
+
       const result = await processSingleEmail({
         senderEmail: message.senderEmail,
-        messageId: message.id,
-        attachmentId: attachments.length > 0 ? attachments[0].attachmentId : undefined,
+        dataUri: dataUri,
       });
 
       if (result.success && result.data) {
