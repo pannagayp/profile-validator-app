@@ -45,8 +45,6 @@ import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 
 const UserProfileSchema = z.object({
-  firstName: z.string().min(1, 'First name is required'),
-  lastName: z.string().min(1, 'Last name is required'),
   email: z.string().email('Invalid email address'),
 });
 
@@ -59,8 +57,6 @@ function AddUserForm() {
   const form = useForm<UserProfileForm>({
     resolver: zodResolver(UserProfileSchema),
     defaultValues: {
-      firstName: '',
-      lastName: '',
       email: '',
     },
   });
@@ -79,7 +75,7 @@ function AddUserForm() {
 
     toast({
       title: 'User Added',
-      description: `User ${values.firstName} ${values.lastName} has been added to the database.`,
+      description: `User with email ${values.email} has been added to the database.`,
     });
 
     form.reset();
@@ -96,34 +92,6 @@ function AddUserForm() {
       <CardContent>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-               <FormField
-                  control={form.control}
-                  name="firstName"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>First Name</FormLabel>
-                      <FormControl>
-                        <Input placeholder="John" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="lastName"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Last Name</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Doe" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-            </div>
             <FormField
               control={form.control}
               name="email"
@@ -150,7 +118,7 @@ function UserList() {
 
   const clientsQuery = useMemoFirebase(() => {
     if (!firestore) return null;
-    return query(collection(firestore, 'client'), orderBy('lastName', 'asc'));
+    return query(collection(firestore, 'client'), orderBy('email', 'asc'));
   }, [firestore]);
 
   const { data: users, isLoading, error } = useCollection(clientsQuery);
@@ -175,7 +143,6 @@ function UserList() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Name</TableHead>
               <TableHead>Email</TableHead>
               <TableHead>Status</TableHead>
             </TableRow>
@@ -184,10 +151,7 @@ function UserList() {
             {users && users.length > 0 ? (
               users.map((user) => (
                 <TableRow key={user.id}>
-                  <TableCell className="font-medium">
-                    {user.firstName} {user.lastName}
-                  </TableCell>
-                  <TableCell>{user.email}</TableCell>
+                  <TableCell className="font-medium">{user.email}</TableCell>
                   <TableCell>
                      <Badge variant={user.validationStatus === 'valid' ? 'default' : 'secondary'}>
                         {user.validationStatus}
@@ -197,7 +161,7 @@ function UserList() {
               ))
             ) : (
               <TableRow>
-                <TableCell colSpan={3} className="text-center">
+                <TableCell colSpan={2} className="text-center">
                   No users found.
                 </TableCell>
               </TableRow>

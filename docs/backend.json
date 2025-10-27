@@ -16,14 +16,6 @@
           "description": "The client's email address.",
           "format": "email"
         },
-        "firstName": {
-          "type": "string",
-          "description": "The client's first name."
-        },
-        "lastName": {
-          "type": "string",
-          "description": "The client's last name."
-        },
         "validationStatus": {
           "type": "string",
           "description": "The validation status of the client's email (e.g., 'valid', 'invalid', 'pending')."
@@ -32,8 +24,6 @@
       "required": [
         "id",
         "email",
-        "firstName",
-        "lastName",
         "validationStatus"
       ]
     },
