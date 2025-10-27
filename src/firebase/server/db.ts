@@ -3,14 +3,16 @@
 
 import { z } from 'zod';
 import { revalidatePath } from 'next/cache';
-import { collection, query, where, getDocs } from 'firebase/firestore';
-import { initializeFirebase } from '..';
+import { collection, query, where, getDocs, getFirestore } from 'firebase/firestore';
 import { processEmailFlow } from '@/ai/flows/process-email';
 import { ExtractedContactInfo } from '@/ai/schemas';
 
 // We need a library to parse DOCX and XLSX files.
 // ApifyClient is a good choice as it can handle various file types.
 import { ApifyClient } from 'apify-client';
+
+import { firebaseConfig } from '@/firebase/config';
+import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
 
 const processEmailSchema = z.object({
     senderEmail: z.string().email(),
@@ -20,6 +22,21 @@ const processEmailSchema = z.object({
 });
 
 type ProcessEmailInput = z.infer<typeof processEmailSchema>;
+
+
+// Server-side Firebase initialization
+function initializeFirebaseOnServer() {
+  if (getApps().length === 0) {
+    return initializeApp(firebaseConfig);
+  }
+  return getApp();
+}
+
+function getSdks(firebaseApp: FirebaseApp) {
+  return {
+    firestore: getFirestore(firebaseApp),
+  };
+}
 
 // Helper function to decode and parse file content
 async function extractTextFromAttachment(base64Data: string, mimeType: string): Promise<string> {
@@ -56,7 +73,8 @@ async function extractTextFromAttachment(base64Data: string, mimeType: string): 
 
 
 export async function processSingleEmail(input: ProcessEmailInput): Promise<{ success: boolean; data?: ExtractedContactInfo; error?: string }> {
-    const { firestore } = initializeFirebase();
+    const app = initializeFirebaseOnServer();
+    const { firestore } = getSdks(app);
     const parsedInput = processEmailSchema.safeParse(input);
 
     if (!parsedInput.success) {
