@@ -1,31 +1,32 @@
+
 {
   "entities": {
-    "UserProfile": {
+    "Client": {
       "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "UserProfile",
+      "title": "Client",
       "type": "object",
-      "description": "Represents a user profile with associated contact information and validation status.",
+      "description": "Represents a client with associated contact information and validation status.",
       "properties": {
         "id": {
           "type": "string",
-          "description": "Unique identifier for the UserProfile entity."
+          "description": "Unique identifier for the Client entity."
         },
         "email": {
           "type": "string",
-          "description": "The user's email address.",
+          "description": "The client's email address.",
           "format": "email"
         },
         "firstName": {
           "type": "string",
-          "description": "The user's first name."
+          "description": "The client's first name."
         },
         "lastName": {
           "type": "string",
-          "description": "The user's last name."
+          "description": "The client's last name."
         },
         "validationStatus": {
           "type": "string",
-          "description": "The validation status of the user's email (e.g., 'valid', 'invalid', 'pending')."
+          "description": "The validation status of the client's email (e.g., 'valid', 'invalid', 'pending')."
         }
       },
       "required": [
@@ -67,9 +68,9 @@
             "type": "string"
           }
         },
-        "userProfileId": {
+        "clientId": {
           "type": "string",
-          "description": "Reference to UserProfile. (Relationship: UserProfile 1:N Email). Nullable to handle emails from unregistered users."
+          "description": "Reference to Client. (Relationship: Client 1:N Email). Nullable to handle emails from unregistered users."
         },
         "autoReplySent": {
           "type": "boolean",
@@ -129,17 +130,17 @@
   "firestore": {
     "structure": [
       {
-        "path": "/userProfiles/{userProfileId}",
+        "path": "/client/{clientId}",
         "definition": {
-          "entityName": "UserProfile",
+          "entityName": "Client",
           "schema": {
-            "$ref": "#/backend/entities/UserProfile"
+            "$ref": "#/backend/entities/Client"
           },
-          "description": "Stores user profile information. The 'userProfileId' is the unique identifier for the user.",
+          "description": "Stores client information. The 'clientId' is the unique identifier for the user.",
           "params": [
             {
-              "name": "userProfileId",
-              "description": "Unique identifier for the user profile."
+              "name": "clientId",
+              "description": "Unique identifier for the client."
             }
           ]
         }
@@ -151,7 +152,7 @@
           "schema": {
             "$ref": "#/backend/entities/Email"
           },
-          "description": "Stores email data, including sender information, timestamp, and references to attachments. Includes a nullable reference to `userProfileId`.",
+          "description": "Stores email data, including sender information, timestamp, and references to attachments. Includes a nullable reference to `clientId`.",
           "params": [
             {
               "name": "emailId",
@@ -181,6 +182,6 @@
         }
       }
     ],
-    "reasoning": "The Firestore structure is designed to manage user profiles, emails, and attachments in a secure and scalable manner, ensuring authorization independence. The core concept is to enable processing incoming emails, extract data from attachments, and manage user profiles. The structure promotes clear security rules and facilitates efficient queries. Authorization Independence is achieved through the design of the `emails` collection which holds a nullable reference to `userProfileId`. \n\nThe data model assumes an automated system triggered by new email arrivals. If the email sender is a known `UserProfile`, associated attachment content is extracted. If the sender is unknown, an auto-reply is triggered. The system's primary data flow involves ingesting new emails and processing file attachments.\n\n**QAPs (Rules are not Filters):** The `userProfiles` collection stores the profiles while the `emails` collection manages emails with links to attachments. This segregation allows listing emails securely, as validation status and other profile data are stored separately in the user profile.\n"
+    "reasoning": "The Firestore structure is designed to manage clients, emails, and attachments in a secure and scalable manner, ensuring authorization independence. The core concept is to enable processing incoming emails, extract data from attachments, and manage client profiles. The structure promotes clear security rules and facilitates efficient queries. Authorization Independence is achieved through the design of the `emails` collection which holds a nullable reference to `clientId`. \n\nThe data model assumes an automated system triggered by new email arrivals. If the email sender is a known `Client`, associated attachment content is extracted. If the sender is unknown, an auto-reply is triggered. The system's primary data flow involves ingesting new emails and processing file attachments.\n\n**QAPs (Rules are not Filters):** The `client` collection stores the profiles while the `emails` collection manages emails with links to attachments. This segregation allows listing emails securely, as validation status and other profile data are stored separately in the client profile.\n"
   }
 }

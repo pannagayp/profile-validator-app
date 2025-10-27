@@ -68,14 +68,14 @@ function AddUserForm() {
   const onSubmit = async (values: UserProfileForm) => {
     if (!firestore) return;
 
-    const userProfilesRef = collection(firestore, 'userProfiles');
+    const clientsRef = collection(firestore, 'client');
     const newUser = {
       ...values,
       validationStatus: 'valid',
       id: '', // Firestore will generate this
     };
 
-    addDocumentNonBlocking(userProfilesRef, newUser);
+    addDocumentNonBlocking(clientsRef, newUser);
 
     toast({
       title: 'User Added',
@@ -148,12 +148,12 @@ function AddUserForm() {
 function UserList() {
   const firestore = useFirestore();
 
-  const userProfilesQuery = useMemoFirebase(() => {
+  const clientsQuery = useMemoFirebase(() => {
     if (!firestore) return null;
-    return query(collection(firestore, 'userProfiles'), orderBy('lastName', 'asc'));
+    return query(collection(firestore, 'client'), orderBy('lastName', 'asc'));
   }, [firestore]);
 
-  const { data: users, isLoading, error } = useCollection(userProfilesQuery);
+  const { data: users, isLoading, error } = useCollection(clientsQuery);
 
   if (isLoading) {
     return <p>Loading users...</p>;

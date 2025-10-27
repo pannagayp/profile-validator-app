@@ -4,7 +4,7 @@
 import { z } from 'zod';
 import { revalidatePath } from 'next/cache';
 import { collection, query, where, getDocs } from 'firebase/firestore';
-import { firestore } from '@/firebase'; // Using server-side instance
+import { initializeFirebase } from '..';
 import { processEmailFlow } from '@/ai/flows/process-email';
 import { ExtractedContactInfo } from '@/ai/schemas';
 
@@ -16,6 +16,7 @@ const processEmailSchema = z.object({
 type ProcessEmailInput = z.infer<typeof processEmailSchema>;
 
 export async function processSingleEmail(input: ProcessEmailInput): Promise<{ success: boolean; data?: ExtractedContactInfo; error?: string }> {
+    const { firestore } = initializeFirebase();
     const parsedInput = processEmailSchema.safeParse(input);
 
     if (!parsedInput.success) {
@@ -26,8 +27,8 @@ export async function processSingleEmail(input: ProcessEmailInput): Promise<{ su
 
     try {
         // Step 1: Check if the sender is registered in the database
-        const userProfilesRef = collection(firestore, 'userProfiles');
-        const q = query(userProfilesRef, where('email', '==', senderEmail));
+        const clientsRef = collection(firestore, 'client');
+        const q = query(clientsRef, where('email', '==', senderEmail));
         const querySnapshot = await getDocs(q);
 
         if (querySnapshot.empty) {

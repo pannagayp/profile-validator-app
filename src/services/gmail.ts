@@ -1,3 +1,4 @@
+
 'use client';
 
 import { google } from 'googleapis';
@@ -143,8 +144,8 @@ export async function filterMessagesByRegisteredSenders(
 ): Promise<Message[]> {
   try {
     const { firestore } = initializeFirebase();
-    const userProfilesRef = collection(firestore, 'userProfiles');
-    const querySnapshot = await getDocs(userProfilesRef);
+    const clientsRef = collection(firestore, 'client');
+    const querySnapshot = await getDocs(clientsRef);
     const registeredEmails = new Set(
       querySnapshot.docs.map((doc) => doc.data().email)
     );
@@ -155,7 +156,7 @@ export async function filterMessagesByRegisteredSenders(
   } catch (error: any) {
     if (error.code === 'permission-denied') {
       throw new FirestorePermissionError({
-        path: 'userProfiles',
+        path: 'client',
         operation: 'list',
       });
     }
