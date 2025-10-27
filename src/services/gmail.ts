@@ -242,7 +242,7 @@ export async function getAttachmentData(messageId: string, attachmentId: string)
 
     const payload = messageResponse.result.payload;
     
-    const findAttachmentPart = (parts: any[], attachmentId: string): any | null => {
+    function findAttachmentPart(parts: any[], attachmentId: string): any | null {
         if (!parts) return null;
         for (const part of parts) {
             if (part.body?.attachmentId === attachmentId) {
@@ -254,16 +254,26 @@ export async function getAttachmentData(messageId: string, attachmentId: string)
             }
         }
         return null;
-    };
+    }
     
     let part = findAttachmentPart(payload.parts, attachmentId);
-    
+
     if (!part && payload.body?.attachmentId === attachmentId) {
         part = payload;
     }
-
+    
     if (!part) {
-        throw new Error('Could not find attachment part to determine mimeType');
+        console.warn(`Attachment part with ID "${attachmentId}" not found in message "${messageId}".`);
+        // Fallback to a default mime type to avoid crashing, but data will likely be missing.
+        return {
+            mimeType: 'application/octet-stream',
+            data: '' // No data can be retrieved without the attachment part.
+        };
+    }
+
+    if (!part.mimeType) {
+        console.warn('Attachment part found, but it has no mimeType. Using default.');
+        part.mimeType = 'application/octet-stream';
     }
     
     const response = await gapi.client.gmail.users.messages.attachments.get({
