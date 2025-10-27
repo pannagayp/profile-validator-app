@@ -82,6 +82,13 @@ export async function processSingleEmail(input: ProcessEmailInput): Promise<{ su
             return { success: false, error: 'Sender is not registered in the database.' };
         }
         
+        // Handle empty or malformed data URI before extraction
+        if (!dataUri.includes(',')) {
+            const extractedData = await processEmailFlow({ rawContent: 'No content provided.' });
+            revalidatePath('/');
+            return { success: true, data: extractedData };
+        }
+
         const rawContent = await extractTextFromDataUri(dataUri);
         
         const extractedData = await processEmailFlow({ rawContent });
