@@ -2,11 +2,11 @@
 'use server';
 
 import { ai } from '@/ai/genkit';
-import { ExtractedContactInfoSchema, type ExtractedContactInfo } from '@/ai/schemas';
+import { ExtractedContactInfoSchema } from '@/ai/schemas';
 import { z } from 'genkit';
 
 const ProcessEmailInputSchema = z.object({
-    emailBody: z.string().describe("The full text content of an email."),
+    rawContent: z.string().describe("The full text content extracted from a document like a resume."),
 });
 
 export const processEmailFlow = ai.defineFlow(
@@ -16,14 +16,23 @@ export const processEmailFlow = ai.defineFlow(
     outputSchema: ExtractedContactInfoSchema,
   },
   async (input) => {
-    const prompt = `You are an expert data extractor. Your task is to extract contact information from the provided email body.
+    const prompt = `You are an expert data extractor specializing in parsing resumes and contact documents. Your task is to extract specific information from the provided text content.
 
-    Email Body:
-    ---
-    ${input.emailBody}
-    ---
+    From the parsed text, intelligently identify and extract the following information:
+    - First Name
+    - Last Name
+    - Email Address
+    - Contact Number / Phone
+    - Years of Experience
+    - LinkedIn Profile URL
 
-    Extract the name, email, company, and LinkedIn profile URL. If any piece of information is not present, return null for that field.`;
+    Return the output in the specified JSON format. If any field is missing in the file, return it as "null".
+
+    Extracted Text Content:
+    ---
+    ${input.rawContent}
+    ---
+    `;
 
     const { output } = await ai.generate({
       prompt: prompt,
@@ -32,7 +41,8 @@ export const processEmailFlow = ai.defineFlow(
         schema: ExtractedContactInfoSchema,
       },
     });
-
-    return output ?? { name: null, email: null, company: null, linkedin: null };
+    
+    // Also include the raw content in the final output object.
+    return output ? { ...output, rawContent: input.rawContent } : null;
   }
 );

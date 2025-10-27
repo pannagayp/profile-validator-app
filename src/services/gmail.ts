@@ -8,7 +8,6 @@ import {
   getDocs,
   getFirestore,
   query,
-  where,
 } from 'firebase/firestore';
 import { initializeFirebase } from '@/firebase';
 import { FirestorePermissionError } from '@/firebase/errors';
@@ -165,17 +164,20 @@ export async function filterMessagesByRegisteredSenders(
   }
 }
 
-async function getPart(
-  userId: string,
-  messageId: string,
-  partId: string
-): Promise<any> {
-  const response = await gapi.client.gmail.users.messages.attachments.get({
-    id: partId,
-    messageId: messageId,
-    userId: userId,
-  });
-  return response.result.data;
+export async function getAttachmentData(messageId: string, attachmentId: string): Promise<string> {
+  await waitForGapiInitialized();
+  try {
+    const response = await gapi.client.gmail.users.messages.attachments.get({
+      userId: 'me',
+      messageId: messageId,
+      id: attachmentId,
+    });
+    // The data is base64url encoded. The server action will decode it.
+    return response.result.data;
+  } catch (error) {
+    console.error('Error fetching attachment data:', error);
+    throw new Error('Failed to fetch attachment data.');
+  }
 }
 
 function base64UrlDecode(input: string): string {

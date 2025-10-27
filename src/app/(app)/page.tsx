@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -6,7 +7,9 @@ import {
   handleSignIn,
   listMessages,
   getLatestEmailBody,
+  getAttachmentData,
   Message,
+  Attachment,
   filterMessagesByRegisteredSenders,
 } from '@/services/gmail';
 import { processSingleEmail } from '@/firebase/server/db';
@@ -22,14 +25,21 @@ import {
 import {
   ArrowPathIcon,
   ExclamationCircleIcon,
+  PaperclipIcon,
 } from '@heroicons/react/24/outline';
 import { type ExtractedContactInfo } from '@/ai/schemas';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
+const SUPPORTED_ATTACHMENT_TYPES = [
+  'application/pdf',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+];
 
 export default function HomePage() {
   const [isSignedIn, setIsSignedIn] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
+  const [attachments, setAttachments] = useState<Record<string, Attachment[]>>({});
   const [status, setStatus] = useState<Status>('idle');
   const [error, setError] = useState<string | null>(null);
 
@@ -58,10 +68,17 @@ export default function HomePage() {
     setError(null);
     try {
       const fetchedMessages = await listMessages();
-      const filteredMessages = await filterMessagesByRegisteredSenders(
-        fetchedMessages
-      );
+      const filteredMessages = await filterMessagesByRegisteredSenders(fetchedMessages);
       setMessages(filteredMessages);
+
+      // After fetching messages, fetch their attachments
+      const newAttachments: Record<string, Attachment[]> = {};
+      for (const message of filteredMessages) {
+        const { attachments } = await getLatestEmailBody(message.id);
+        newAttachments[message.id] = attachments;
+      }
+      setAttachments(newAttachments);
+
       setStatus('success');
     } catch (err: any) {
       setError('Failed to fetch messages. Please try again.');
@@ -71,38 +88,53 @@ export default function HomePage() {
   };
 
   const onEmailSubmit = async (message: Message) => {
+    const processId = message.id; // Can be a message ID or attachment ID
     setProcessingState((prev) => ({
       ...prev,
-      [message.id]: { isProcessing: true, error: undefined }, // Clear previous errors
+      [processId]: { isProcessing: true, error: undefined },
     }));
-    setProcessedEmails((prev) => ({ ...prev, [message.id]: null })); // Clear previous data
+    setProcessedEmails((prev) => ({ ...prev, [processId]: null }));
 
     try {
-      const { body } = await getLatestEmailBody(message.id);
+      const messageAttachments = attachments[message.id] || [];
+      const supportedAttachment = messageAttachments.find(att => SUPPORTED_ATTACHMENT_TYPES.includes(att.mimeType));
+
+      if (!supportedAttachment) {
+        setProcessingState((prev) => ({
+          ...prev,
+          [processId]: { isProcessing: false, error: 'No supported attachment (PDF, DOCX, XLSX) found.' },
+        }));
+        return;
+      }
+
+      // Fetch attachment data as base64 string
+      const attachmentData = await getAttachmentData(message.id, supportedAttachment.attachmentId);
 
       const result = await processSingleEmail({
-        emailBody: body,
         senderEmail: message.senderEmail,
+        attachmentId: supportedAttachment.attachmentId,
+        attachmentData: attachmentData,
+        mimeType: supportedAttachment.mimeType,
       });
 
       if (result.success && result.data) {
-        setProcessedEmails((prev) => ({ ...prev, [message.id]: result.data }));
+        setProcessedEmails((prev) => ({ ...prev, [processId]: result.data }));
       } else {
         setProcessingState((prev) => ({
           ...prev,
-          [message.id]: { isProcessing: false, error: result.error },
+          [processId]: { isProcessing: false, error: result.error },
         }));
       }
     } catch (err) {
       setProcessingState((prev) => ({
         ...prev,
-        [message.id]: { isProcessing: false, error: 'Failed to process email.' },
+        [processId]: { isProcessing: false, error: 'Failed to process email attachment.' },
       }));
       console.error(err);
     } finally {
       setProcessingState((prev) => ({
         ...prev,
-        [message.id]: { ...prev[message.id], isProcessing: false },
+        [processId]: { ...prev[processId], isProcessing: false },
       }));
     }
   };
@@ -175,6 +207,7 @@ export default function HomePage() {
           {messages.map((message) => {
             const processedData = processedEmails[message.id];
             const state = processingState[message.id] || { isProcessing: false };
+            const messageAttachments = attachments[message.id] || [];
 
             return (
               <Card key={message.id}>
@@ -193,22 +226,38 @@ export default function HomePage() {
                 </CardHeader>
                 <CardContent>
                   <p className="text-sm text-gray-600">{message.snippet}</p>
+                   {messageAttachments.length > 0 && (
+                    <div className="mt-4">
+                        <h4 className="text-sm font-medium text-gray-700 mb-2">Attachments:</h4>
+                        <div className="flex flex-wrap gap-2">
+                        {messageAttachments.map(att => (
+                            <div key={att.attachmentId} className="flex items-center gap-2 text-sm bg-gray-100 p-2 rounded-md">
+                                <PaperclipIcon className="h-4 w-4 text-gray-500" />
+                                <span>{att.filename}</span>
+                                <span className="text-gray-500">({(att.size / 1024).toFixed(2)} KB)</span>
+                            </div>
+                        ))}
+                        </div>
+                    </div>
+                   )}
                   <div className="mt-4">
                     <Button
                       onClick={() => onEmailSubmit(message)}
                       disabled={state.isProcessing}
                     >
-                      {state.isProcessing ? 'Processing...' : 'Process Email'}
+                      {state.isProcessing ? 'Processing Attachment...' : 'Process Attachment'}
                     </Button>
                   </div>
                 </CardContent>
                 {processedData && (
                   <CardFooter className="flex-col items-start gap-2">
                     <h4 className="font-semibold">Extracted Information:</h4>
-                    <div className="rounded-md bg-gray-100 p-4 text-sm w-full">
-                      <p><strong>Name:</strong> {processedData.name || 'N/A'}</p>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-2 rounded-md bg-gray-100 p-4 text-sm w-full">
+                      <p><strong>First Name:</strong> {processedData.firstName || 'N/A'}</p>
+                      <p><strong>Last Name:</strong> {processedData.lastName || 'N/A'}</p>
                       <p><strong>Email:</strong> {processedData.email || 'N/A'}</p>
-                      <p><strong>Company:</strong> {processedData.company || 'N/A'}</p>
+                      <p><strong>Contact:</strong> {processedData.contactNumber || 'N/A'}</p>
+                      <p><strong>Experience:</strong> {processedData.experience || 'N/A'}</p>
                       <p><strong>LinkedIn:</strong> {processedData.linkedin || 'N/A'}</p>
                     </div>
                   </CardFooter>
