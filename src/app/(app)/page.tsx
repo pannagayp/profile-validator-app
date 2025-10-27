@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -70,8 +69,9 @@ export default function HomePage() {
   const onEmailSubmit = async (message: Message) => {
     setProcessingState((prev) => ({
       ...prev,
-      [message.id]: { isProcessing: true },
+      [message.id]: { isProcessing: true, error: undefined }, // Clear previous errors
     }));
+    setProcessedEmails((prev) => ({ ...prev, [message.id]: null })); // Clear previous data
 
     try {
       const { body } = await getLatestEmailBody(message.id);
