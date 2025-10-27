@@ -33,11 +33,17 @@ export const processEmailFlow = ai.defineFlow(
             const llmResponse = await ai.generate({
                 prompt: `You are an expert data-entry specialist. Your job is to extract all readable text, tables, and key information from the uploaded file content. The content is provided as a data URI. Return the full, verbatim text content you extract.
 
-Content to process: {{media url=${input.dataUri}}}`,
+Content to process: {{media url=dataUri}}`,
                 model: modelName,
                 output: {
                     schema: ExtractedContactInfoSchema,
                 },
+                config: {
+                    temperature: 0.1
+                },
+                context: {
+                    dataUri: input.dataUri
+                }
             });
 
             const output = llmResponse.output;
