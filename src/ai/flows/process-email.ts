@@ -13,7 +13,7 @@ const ProcessEmailInputSchema = z.object({
 const processEmailPrompt = ai.definePrompt(
     {
         name: 'processEmailPrompt',
-        model: 'gemini-1.5-pro-latest',
+        model: 'gemini-1.5-pro',
         input: { schema: ProcessEmailInputSchema },
         output: { schema: ExtractedContactInfoSchema },
         prompt: `You are an expert data-entry specialist. Your job is to extract all readable text, tables, and key information from the uploaded file content. The content is provided as a data URI. Return the full, verbatim text content you extract.
