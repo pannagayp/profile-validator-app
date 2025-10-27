@@ -4,8 +4,6 @@
 import { z } from 'zod';
 import { revalidatePath } from 'next/cache';
 import { collection, query, where, getDocs, getFirestore } from 'firebase/firestore';
-import { processEmailFlow } from '@/ai/flows/process-email';
-import { ExtractedContactInfo } from '@/ai/schemas';
 import { firebaseConfig } from '@/firebase/config';
 import { initializeApp, getApps, getApp, type FirebaseApp } from 'firebase/app';
 import pdf from 'pdf-parse';
@@ -18,7 +16,6 @@ const processEmailSchema = z.object({
 });
 
 type ProcessEmailInput = z.infer<typeof processEmailSchema>;
-
 
 // Server-side Firebase initialization
 function initializeFirebaseOnServer() {
@@ -33,7 +30,6 @@ function getSdks(firebaseApp: FirebaseApp) {
     firestore: getFirestore(firebaseApp),
   };
 }
-
 
 async function extractTextFromDataUri(dataUri: string): Promise<string> {
     const [header, base64Data] = dataUri.split(',');
@@ -61,8 +57,7 @@ async function extractTextFromDataUri(dataUri: string): Promise<string> {
     }
 }
 
-
-export async function processSingleEmail(input: ProcessEmailInput): Promise<{ success: boolean; data?: ExtractedContactInfo; error?: string }> {
+export async function processSingleEmail(input: ProcessEmailInput): Promise<{ success: boolean; data?: { rawContent: string }; error?: string }> {
     const app = initializeFirebaseOnServer();
     const { firestore } = getSdks(app);
     const parsedInput = processEmailSchema.safeParse(input);
@@ -84,17 +79,14 @@ export async function processSingleEmail(input: ProcessEmailInput): Promise<{ su
         
         // Handle empty or malformed data URI before extraction
         if (!dataUri.includes(',')) {
-            const extractedData = await processEmailFlow({ rawContent: 'No content provided.' });
             revalidatePath('/');
-            return { success: true, data: extractedData };
+            return { success: true, data: { rawContent: 'No content provided.' } };
         }
 
         const rawContent = await extractTextFromDataUri(dataUri);
         
-        const extractedData = await processEmailFlow({ rawContent });
-
         revalidatePath('/');
-        return { success: true, data: extractedData };
+        return { success: true, data: { rawContent } };
 
     } catch (e: any) {
         console.error("Error processing email action:", e);
