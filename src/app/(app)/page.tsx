@@ -7,6 +7,7 @@ import {
   listMessages,
   getLatestEmailBody,
   Message,
+  filterMessagesByRegisteredSenders,
 } from '@/services/gmail';
 import { processSingleEmail } from '@/firebase/server/db';
 import { Button } from '@/components/ui/button';
@@ -57,7 +58,10 @@ export default function HomePage() {
     setError(null);
     try {
       const fetchedMessages = await listMessages();
-      setMessages(fetchedMessages);
+      const filteredMessages = await filterMessagesByRegisteredSenders(
+        fetchedMessages
+      );
+      setMessages(filteredMessages);
       setStatus('success');
     } catch (err: any) {
       setError('Failed to fetch messages. Please try again.');
@@ -162,7 +166,11 @@ export default function HomePage() {
         </div>
       )}
 
-      {status === 'success' && (
+      {status === 'success' && messages.length === 0 && (
+        <p>No new emails from registered senders found.</p>
+      )}
+
+      {status === 'success' && messages.length > 0 && (
         <div className="space-y-4">
           {messages.map((message) => {
             const processedData = processedEmails[message.id];

@@ -2,12 +2,21 @@
 
 import { google } from 'googleapis';
 import { Message, Attachment } from '@/lib/types';
+import {
+  collection,
+  getDocs,
+  getFirestore,
+  query,
+  where,
+} from 'firebase/firestore';
+import { initializeFirebase } from '@/firebase';
 
 let gapi: any;
 let gis: any;
 let tokenClient: any;
 let onAuthSuccessCallback: () => void;
 let onAuthInitCallback: () => void;
+let gapiInitialized = false;
 
 const API_KEY = process.env.NEXT_PUBLIC_GMAIL_API_KEY;
 const CLIENT_ID = process.env.NEXT_PUBLIC_GMAIL_CLIENT_ID;
@@ -16,7 +25,7 @@ const SCOPES = 'https://www.googleapis.com/auth/gmail.readonly';
 export function initialize(onAuthSuccess: () => void, onAuthInit: () => void) {
   onAuthSuccessCallback = onAuthSuccess;
   onAuthInitCallback = onAuthInit;
-  
+
   const scriptGapi = document.createElement('script');
   scriptGapi.src = 'https://apis.google.com/js/api.js';
   scriptGapi.async = true;
@@ -40,8 +49,11 @@ function gapiLoaded() {
 async function initializeGapiClient() {
   await gapi.client.init({
     apiKey: API_KEY,
-    discoveryDocs: ['https://www.googleapis.com/discovery/v1/apis/gmail/v1/rest'],
+    discoveryDocs: [
+      'https://www.googleapis.com/discovery/v1/apis/gmail/v1/rest',
+    ],
   });
+  gapiInitialized = true;
 }
 
 function gisLoaded() {
@@ -72,7 +84,21 @@ export function handleSignOut() {
   }
 }
 
+async function waitForGapiInitialized() {
+  return new Promise<void>((resolve) => {
+    const check = () => {
+      if (gapiInitialized) {
+        resolve();
+      } else {
+        setTimeout(check, 100);
+      }
+    };
+    check();
+  });
+}
+
 export async function listMessages(): Promise<Message[]> {
+  await waitForGapiInitialized();
   const response = await gapi.client.gmail.users.messages.list({
     userId: 'me',
     maxResults: 10,
@@ -92,9 +118,12 @@ export async function listMessages(): Promise<Message[]> {
     const senderHeader = headers.find((h: any) => h.name === 'From');
     const subjectHeader = headers.find((h: any) => h.name === 'Subject');
     const dateHeader = headers.find((h: any) => h.name === 'Date');
-    
-    const senderEmail = senderHeader.value.match(/<(.*)>/)?.[1] || senderHeader.value;
-    const senderName = senderHeader.value.includes('<') ? senderHeader.value.split('<')[0].trim() : senderEmail;
+
+    const senderEmail =
+      senderHeader.value.match(/<(.*)>/)?.[1] || senderHeader.value;
+    const senderName = senderHeader.value.includes('<')
+      ? senderHeader.value.split('<')[0].trim()
+      : senderEmail;
 
     detailedMessages.push({
       id: msg.result.id,
@@ -109,62 +138,83 @@ export async function listMessages(): Promise<Message[]> {
   return detailedMessages;
 }
 
-async function getPart(userId: string, messageId: string, partId: string): Promise<any> {
-    const response = await gapi.client.gmail.users.messages.attachments.get({
-        id: partId,
-        messageId: messageId,
-        userId: userId
-    });
-    return response.result.data;
+export async function filterMessagesByRegisteredSenders(
+  messages: Message[]
+): Promise<Message[]> {
+  const { firestore } = initializeFirebase();
+  const userProfilesRef = collection(firestore, 'userProfiles');
+  const querySnapshot = await getDocs(userProfilesRef);
+  const registeredEmails = new Set(
+    querySnapshot.docs.map((doc) => doc.data().email)
+  );
+
+  return messages.filter((message) => registeredEmails.has(message.senderEmail));
+}
+
+async function getPart(
+  userId: string,
+  messageId: string,
+  partId: string
+): Promise<any> {
+  const response = await gapi.client.gmail.users.messages.attachments.get({
+    id: partId,
+    messageId: messageId,
+    userId: userId,
+  });
+  return response.result.data;
 }
 
 function base64UrlDecode(input: string): string {
-    let base64 = input.replace(/-/g, '+').replace(/_/g, '/');
-    let pad = base64.length % 4;
-    if(pad) {
-      if(pad === 2) base64 += '==';
-      else if (pad === 3) base64 += '=';
-    }
-    return atob(base64);
+  let base64 = input.replace(/-/g, '+').replace(/_/g, '/');
+  let pad = base64.length % 4;
+  if (pad) {
+    if (pad === 2) base64 += '==';
+    else if (pad === 3) base64 += '=';
+  }
+  return atob(base64);
 }
 
-export async function getLatestEmailBody(messageId: string): Promise<{ body: string; attachments: Attachment[] }> {
-    try {
-        const response = await gapi.client.gmail.users.messages.get({
-            userId: 'me',
-            id: messageId,
-        });
+export async function getLatestEmailBody(
+  messageId: string
+): Promise<{ body: string; attachments: Attachment[] }> {
+  try {
+    await waitForGapiInitialized();
+    const response = await gapi.client.gmail.users.messages.get({
+      userId: 'me',
+      id: messageId,
+    });
 
-        const payload = response.result.payload;
-        let body = '';
-        const attachments: Attachment[] = [];
+    const payload = response.result.payload;
+    let body = '';
+    const attachments: Attachment[] = [];
 
-        if (payload.parts) {
-            const textPart = payload.parts.find(part => part.mimeType === 'text/plain');
-            if (textPart && textPart.body && textPart.body.data) {
-                body = base64UrlDecode(textPart.body.data);
-            }
+    if (payload.parts) {
+      const textPart = payload.parts.find(
+        (part) => part.mimeType === 'text/plain'
+      );
+      if (textPart && textPart.body && textPart.body.data) {
+        body = base64UrlDecode(textPart.body.data);
+      }
 
-            for (const part of payload.parts) {
-                if (part.filename && part.body && part.body.attachmentId) {
-                    attachments.push({
-                        filename: part.filename,
-                        mimeType: part.mimeType,
-                        size: part.body.size,
-                        attachmentId: part.body.attachmentId
-                    });
-                }
-            }
-        } else if (payload.body && payload.body.data) {
-            body = base64UrlDecode(payload.body.data);
+      for (const part of payload.parts) {
+        if (part.filename && part.body && part.body.attachmentId) {
+          attachments.push({
+            filename: part.filename,
+            mimeType: part.mimeType,
+            size: part.body.size,
+            attachmentId: part.body.attachmentId,
+          });
         }
-
-        return { body, attachments };
-
-    } catch (error) {
-        console.error('Error fetching email body:', error);
-        throw new Error('Failed to fetch email body.');
+      }
+    } else if (payload.body && payload.body.data) {
+      body = base64UrlDecode(payload.body.data);
     }
+
+    return { body, attachments };
+  } catch (error: any) {
+    console.error('Error fetching email body:', JSON.stringify(error, null, 2));
+    throw new Error('Failed to fetch email body.');
+  }
 }
 
 export { Message, Attachment };
