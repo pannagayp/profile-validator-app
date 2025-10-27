@@ -14,7 +14,7 @@ const ProcessEmailInputSchema = z.object({
 const extractContentPrompt = ai.definePrompt({
     name: 'extractContentPrompt',
     // Specify the model to use directly in the prompt definition.
-    model: 'gemini-1.5-pro', 
+    model: 'gemini-1.5-pro-latest', 
     input: {
         schema: ProcessEmailInputSchema,
     },
