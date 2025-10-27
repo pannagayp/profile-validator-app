@@ -10,6 +10,7 @@ import {
   where,
 } from 'firebase/firestore';
 import { initializeFirebase } from '@/firebase';
+import { FirestorePermissionError } from '@/firebase/errors';
 
 let gapi: any;
 let gis: any;
@@ -131,7 +132,6 @@ export async function listMessages(): Promise<Message[]> {
       snippet: msg.result.snippet,
       senderName: senderName,
       senderEmail: senderEmail,
-      subject: subjectHeader.value,
       timestamp: new Date(dateHeader.value).toISOString(),
     });
   }
@@ -141,14 +141,27 @@ export async function listMessages(): Promise<Message[]> {
 export async function filterMessagesByRegisteredSenders(
   messages: Message[]
 ): Promise<Message[]> {
-  const { firestore } = initializeFirebase();
-  const userProfilesRef = collection(firestore, 'userProfiles');
-  const querySnapshot = await getDocs(userProfilesRef);
-  const registeredEmails = new Set(
-    querySnapshot.docs.map((doc) => doc.data().email)
-  );
+  try {
+    const { firestore } = initializeFirebase();
+    const userProfilesRef = collection(firestore, 'userProfiles');
+    const querySnapshot = await getDocs(userProfilesRef);
+    const registeredEmails = new Set(
+      querySnapshot.docs.map((doc) => doc.data().email)
+    );
 
-  return messages.filter((message) => registeredEmails.has(message.senderEmail));
+    return messages.filter((message) =>
+      registeredEmails.has(message.senderEmail)
+    );
+  } catch (error: any) {
+    if (error.code === 'permission-denied') {
+      throw new FirestorePermissionError({
+        path: 'userProfiles',
+        operation: 'list',
+      });
+    }
+    // Re-throw other errors
+    throw error;
+  }
 }
 
 async function getPart(
