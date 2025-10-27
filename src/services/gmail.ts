@@ -235,12 +235,6 @@ export async function getLatestEmailBody(
 
 export async function getAttachmentData(messageId: string, attachmentId: string): Promise<{ mimeType: string, data: string }> {
     await waitForGapiInitialized();
-    const response = await gapi.client.gmail.users.messages.attachments.get({
-        userId: 'me',
-        messageId: messageId,
-        id: attachmentId,
-    });
-
     const messageResponse = await gapi.client.gmail.users.messages.get({
         userId: 'me',
         id: messageId,
@@ -248,26 +242,41 @@ export async function getAttachmentData(messageId: string, attachmentId: string)
 
     const payload = messageResponse.result.payload;
     
+    // Recursive function to find the attachment part in the email's payload
     const findAttachmentPart = (parts: any[]): any | null => {
-        for (const part of parts) {
-            if (part.body && part.body.attachmentId === attachmentId) {
-                return part;
-            }
-            if (part.parts) {
-                const foundPart = findAttachmentPart(part.parts);
-                if (foundPart) {
-                    return foundPart;
-                }
-            }
+      for (const part of parts) {
+        if (part.body && part.body.attachmentId === attachmentId) {
+          return part;
         }
-        return null;
+        if (part.parts) {
+          const foundPart = findAttachmentPart(part.parts);
+          if (foundPart) {
+            return foundPart;
+          }
+        }
+      }
+      return null;
     };
     
-    const part = payload.parts ? findAttachmentPart(payload.parts) : null;
+    let part = null;
+    if (payload.parts) {
+      part = findAttachmentPart(payload.parts);
+    }
     
     if (!part) {
-        throw new Error('Could not find attachment part to determine mimeType');
+        // Fallback for non-multipart emails or attachments at the top level
+        if (payload.body && payload.body.attachmentId === attachmentId) {
+            part = payload;
+        } else {
+            throw new Error('Could not find attachment part to determine mimeType');
+        }
     }
+    
+    const response = await gapi.client.gmail.users.messages.attachments.get({
+      userId: 'me',
+      messageId: messageId,
+      id: attachmentId,
+    });
 
     return {
         mimeType: part.mimeType,
