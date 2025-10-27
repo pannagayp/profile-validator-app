@@ -10,18 +10,6 @@ const ProcessEmailInputSchema = z.object({
     dataUri: z.string().describe("The data URI of the content to process. This could be a text body or a file like a PDF, Word, or Excel document."),
 });
 
-const processEmailPrompt = ai.definePrompt(
-    {
-        name: 'processEmailPrompt',
-        input: { schema: ProcessEmailInputSchema },
-        output: { schema: ExtractedContactInfoSchema },
-        prompt: `You are an expert data-entry specialist. Your job is to extract all readable text, tables, and key information from the uploaded file content. The content is provided as a data URI. Return the full, verbatim text content you extract.
-
-Content to process: {{media url=dataUri}}
-`,
-    },
-);
-
 export const processEmailFlow = ai.defineFlow(
   {
     name: 'processEmailFlow',
@@ -46,13 +34,13 @@ export const processEmailFlow = ai.defineFlow(
                 prompt: `You are an expert data-entry specialist. Your job is to extract all readable text, tables, and key information from the uploaded file content. The content is provided as a data URI. Return the full, verbatim text content you extract.
 
 Content to process: {{media url=${input.dataUri}}}`,
-                model: modelName,
+                model: ai.model(modelName),
                 output: {
                     schema: ExtractedContactInfoSchema,
                 },
             });
 
-            const output = llmResponse.output();
+            const output = llmResponse.output;
             if (output) {
                 return output;
             }
