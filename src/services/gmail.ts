@@ -182,7 +182,7 @@ export async function getLatestEmailBody(
     const response = await gapi.client.gmail.users.messages.get({
       userId: 'me',
       id: messageId,
-      format: 'full', // Important: use full format to get all parts
+      format: 'full',
     });
 
     const payload = response.result.payload;
@@ -192,15 +192,9 @@ export async function getLatestEmailBody(
     // Recursive function to find parts
     function findParts(parts: any[]) {
       if (!parts) return;
-
       for (const part of parts) {
-        // Find text body part
-        if (!body && part.mimeType === 'text/plain' && part.body && part.body.data) {
-          body = base64UrlDecode(part.body.data);
-        }
-
-        // Find attachment parts, ensuring it's a real attachment
-        if (part.filename && part.body && part.body.attachmentId) {
+        // Only consider parts that are actual attachments with an attachmentId
+        if (part.filename && part.body?.attachmentId) {
           attachments.push({
             filename: part.filename,
             mimeType: part.mimeType,
@@ -209,6 +203,11 @@ export async function getLatestEmailBody(
           });
         }
         
+        // Find text body part
+        if (!body && part.mimeType === 'text/plain' && part.body?.data) {
+          body = base64UrlDecode(part.body.data);
+        }
+
         // Recurse into sub-parts
         if (part.parts) {
           findParts(part.parts);
@@ -220,7 +219,9 @@ export async function getLatestEmailBody(
       findParts(payload.parts);
     } else if (payload.body && payload.body.data) {
       // This is for simple, non-multipart emails.
-      body = base64UrlDecode(payload.body.data);
+      if (payload.mimeType === 'text/plain') {
+        body = base64UrlDecode(payload.body.data);
+      }
     }
     
     // If body is still empty, fallback to the snippet.
@@ -237,46 +238,53 @@ export async function getLatestEmailBody(
 
 export async function getAttachmentData(messageId: string, attachmentId: string): Promise<{ mimeType: string, data: string }> {
     await waitForGapiInitialized();
-    const messageResponse = await gapi.client.gmail.users.messages.get({
-        userId: 'me',
-        id: messageId,
-        format: 'full'
-    });
 
-    const payload = messageResponse.result.payload;
-    
-    function findAttachmentPart(parts: any[], id: string): any | null {
-        if (!parts) return null;
-        for (const part of parts) {
-            if (part.body?.attachmentId === id) {
-                return part;
+    try {
+        const attachResponse = await gapi.client.gmail.users.messages.attachments.get({
+          userId: 'me',
+          messageId: messageId,
+          id: attachmentId,
+        });
+
+        const messageResponse = await gapi.client.gmail.users.messages.get({
+            userId: 'me',
+            id: messageId,
+            format: 'full'
+        });
+
+        const payload = messageResponse.result.payload;
+        let mimeType = 'application/octet-stream'; // Default MIME type
+
+        function findAttachmentMimeType(parts: any[], id: string): string | null {
+            if (!parts) return null;
+            for (const part of parts) {
+                if (part.body?.attachmentId === id) {
+                    return part.mimeType;
+                }
+                if (part.parts) {
+                    const foundMimeType = findAttachmentMimeType(part.parts, id);
+                    if (foundMimeType) return foundMimeType;
+                }
             }
-            if (part.parts) {
-                const found = findAttachmentPart(part.parts, id);
-                if (found) return found;
+            return null;
+        }
+
+        if (payload.parts) {
+            const foundMimeType = findAttachmentMimeType(payload.parts, attachmentId);
+            if (foundMimeType) {
+                mimeType = foundMimeType;
             }
         }
-        return null;
+        
+        // The data is returned in base64url format, convert it to standard base64
+        const base64Data = attachResponse.result.data.replace(/-/g, '+').replace(/_/g, '/');
+
+        return {
+            mimeType: mimeType,
+            data: base64Data
+        };
+    } catch (error: any) {
+        console.error('Error fetching attachment data:', error);
+        throw new Error(`Failed to get attachment with ID ${attachmentId}.`);
     }
-    
-    // Start search from the root payload to ensure all parts are checked
-    const part = findAttachmentPart([payload], attachmentId);
-
-    if (!part) {
-        throw new Error(`Attachment with ID ${attachmentId} not found in message ${messageId}.`);
-    }
-
-    const attachResponse = await gapi.client.gmail.users.messages.attachments.get({
-      userId: 'me',
-      messageId: messageId,
-      id: attachmentId,
-    });
-
-    // The data is returned in base64url format, convert it to standard base64
-    const base64Data = attachResponse.result.data.replace(/-/g, '+').replace(/_/g, '/');
-
-    return {
-        mimeType: part.mimeType || 'application/octet-stream',
-        data: base64Data
-    };
 }
