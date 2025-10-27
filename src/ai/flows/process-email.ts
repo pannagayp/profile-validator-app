@@ -12,7 +12,6 @@ const ProcessEmailInputSchema = z.object({
 const processEmailPrompt = ai.definePrompt(
     {
         name: 'processEmailPrompt',
-        model: 'gemini-pro',
         input: { schema: ProcessEmailInputSchema },
         output: { schema: ExtractedContactInfoSchema },
         prompt: `You are an expert data-entry specialist. Your ONLY job is to extract the raw text content from the following email body. Do not summarize, analyze, or alter the content in any way. Return the full, verbatim text content.
@@ -32,10 +31,10 @@ export const processEmailFlow = ai.defineFlow(
   async (input) => {
     // If there's no body, return an empty result.
     if (!input.emailBody) {
-      return { rawContent: 'No email body provided.', dataUri: null };
+      return { rawContent: 'No email body provided.' };
     }
     
     const { output } = await processEmailPrompt(input);
-    return output || { rawContent: 'Failed to process email content.', dataUri: null };
+    return output || { rawContent: 'Failed to process email content.' };
   }
 );
