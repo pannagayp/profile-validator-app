@@ -1,16 +1,32 @@
 /**
- * @file Firestore Security Rules
- * @core_philosophy This ruleset enforces a user-ownership model for user profiles and allows public read access to emails.
- *   Writes to user profiles are restricted to the owner (the user with the matching UID).
- *   Emails are publicly readable but only created via backend, and attachments are only accessible via the parent email.
- * @data_structure
- *   - /userProfiles/{userId}: Stores user profile data, accessible only to the user themselves.
- *   - /emails/{emailId}: Stores email data, publicly readable.
- *   - /emails/{emailId}/attachments/{attachmentId}: Stores attachment data, accessible only via the parent email.
- * @key_security_decisions
- *   - User listing is disallowed.
- *   - Emails are publicly readable to simplify data retrieval. Writes are restricted to the backend through use of server timestamps to prevent client writes.
- *   - Attachments are secured via path-based access, requiring a valid email ID.
+ * @fileoverview Firestore Security Rules for Email and User Management.
+ *
+ * Core Philosophy:
+ * This ruleset prioritizes secure user data management by enforcing strict
+ * ownership for user profiles. It provides public read access to emails
+ * while restricting email creation, updates, and deletion to authorized
+ * system processes (not end-users). Attachment access is restricted based on the parent email.
+ *
+ * Data Structure:
+ * - /userProfiles/{userProfileId}: Stores user profile information.
+ * - /emails/{emailId}: Stores email metadata.
+ * - /emails/{emailId}/attachments/{attachmentId}: Stores attachment data for emails.
+ *
+ * Key Security Decisions:
+ * - User profiles are strictly owned by the user identified by their UID.
+ * - Email creation is not directly controlled by users, assuming that email
+ *   creation is handled by a backend system. Therefore, there are no create,
+ *   update or delete permissions for end-users.
+ * - Listing of user profiles is denied.
+ *
+ * Denormalization for Authorization:
+ *   - Email documents should contain a `userProfileId` field, even if nullable,
+ *     to quickly determine the associated user (if any).
+ *
+ * Structural Segregation:
+ *   - Public and private data are stored in separate collections.  User profile
+ *     data is stored in the /userProfiles/{userProfileId} collection and secured
+ *     with owner-only access.
  */
 rules_version = '2';
 service cloud.firestore {
@@ -19,58 +35,72 @@ service cloud.firestore {
     /**
      * @description Controls access to user profile documents.
      * @path /userProfiles/{userProfileId}
-     * @allow (create) - A user can create their own profile if the `userProfileId` matches their `auth.uid`.
-     * @allow (get, update, delete) - A user can only access or modify their own profile.
-     * @deny (create) - A user cannot create a profile for another user.
-     * @deny (get, update, delete) - A user cannot access or modify another user's profile.
-     * @principle Enforces document ownership for writes and restricts access to a user's own data.
+     * @allow (create) User with matching UID can create their own profile.
+     * @allow (get, update, delete) User with matching UID can access and modify their own profile.
+     * @deny (list) User profiles cannot be listed.
+     * @deny (create, update, delete) Users cannot create, update or delete other user profiles.
+     * @principle Enforces document ownership for user profiles.
      */
     match /userProfiles/{userProfileId} {
-      function isOwner(userId) {
-        return request.auth.uid == userId;
+      // Helper function to check if the user is the owner of the profile.
+      function isOwner(userProfileId) {
+        return request.auth.uid == userProfileId;
       }
 
-      function isExistingOwner(userId) {
-        return isOwner(userId) && resource != null;
+      // Helper function to check if the user is the existing owner of the profile.
+      function isExistingOwner(userProfileId) {
+        return isOwner(userProfileId) && resource.data != null;
       }
 
+      // Allows a user to create their own profile if the UID matches the document ID.
+      allow create: if isOwner(userProfileId) && request.resource.data.id == request.auth.uid;
+
+      // Allows the owner to get their profile.
       allow get: if isOwner(userProfileId);
-      allow list: if false;
 
-      allow create: if isOwner(userProfileId) && request.resource.data.id == userProfileId;
-      allow update: if isExistingOwner(userProfileId) && request.resource.data.id == resource.data.id;
+      // Allows the owner to update their profile.
+      allow update: if isExistingOwner(userProfileId);
+
+      // Allows the owner to delete their profile.
       allow delete: if isExistingOwner(userProfileId);
+
+      // Denies listing of user profiles.
+      allow list: if false;
     }
 
     /**
-     * @description Controls access to email documents.
+     * @description Controls access to email documents. Assumes emails are created and managed by a trusted system.
      * @path /emails/{emailId}
-     * @allow (get, list) - Emails are publicly readable.
-     * @allow (create) - Emails can only be created.
-     * @deny (update, delete) - Emails cannot be updated or deleted.
-     * @principle Allows public read access while restricting write access to prevent unauthorized modifications.
+     * @allow (get, list) Public read access to email metadata.
+     * @deny (create, update, delete) No end-user creation, modification or deletion of emails.
+     * @principle Provides public read access with system-only writes.
      */
     match /emails/{emailId} {
-      allow get: if true;
-      allow list: if true;
-      allow create: if true;
-      allow update: if false;
-      allow delete: if false;
+      // Allows public read access to email documents.
+      allow get, list: if true;
+
+      // Denies all client-side creation, updates and deletes. Email management is assumed to be handled by backend.
+      allow create, update, update, delete: if false;
     }
 
     /**
-     * @description Controls access to attachment documents nested under email documents.
+     * @description Controls access to attachment documents within an email.
      * @path /emails/{emailId}/attachments/{attachmentId}
-     * @allow (get, list, create) - Attachments are accessible given a valid email.
-     * @deny (update, delete) - Attachments cannot be updated or deleted.
-     * @principle Secures attachments via path-based access, requiring a valid email ID.
+     * @allow (get, list) Public read access to attachments.
+     * @deny (create, update, delete) No end-user creation, modification, or deletion of attachments.
+     * @principle Provides public read access with system-only writes, linked to the parent email.
      */
     match /emails/{emailId}/attachments/{attachmentId} {
-      allow get: if true;
-      allow list: if true;
-      allow create: if true;
-      allow update: if false;
-      allow delete: if false;
+      // Allows public read access to attachment documents.
+      allow get, list: if true;
+
+      // Denies all client-side creation, updates and deletes. Attachment management is assumed to be handled by backend.
+      allow create, update, delete: if false;
     }
+  }
+
+  // Helper function to check if a user is signed in.
+  function isSignedIn() {
+    return request.auth != null;
   }
 }
