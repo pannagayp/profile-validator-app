@@ -199,7 +199,7 @@ export async function getLatestEmailBody(
           body = base64UrlDecode(part.body.data);
         }
 
-        // Find attachment parts
+        // Find attachment parts, ensuring it's a real attachment
         if (part.filename && part.body && part.body.attachmentId) {
           attachments.push({
             filename: part.filename,
@@ -245,21 +245,22 @@ export async function getAttachmentData(messageId: string, attachmentId: string)
 
     const payload = messageResponse.result.payload;
     
-    function findAttachmentPart(parts: any[], attachmentId: string): any | null {
+    function findAttachmentPart(parts: any[], id: string): any | null {
         if (!parts) return null;
         for (const part of parts) {
-            if (part.body?.attachmentId === attachmentId) {
+            if (part.body?.attachmentId === id) {
                 return part;
             }
             if (part.parts) {
-                const found = findAttachmentPart(part.parts, attachmentId);
+                const found = findAttachmentPart(part.parts, id);
                 if (found) return found;
             }
         }
         return null;
     }
     
-    const part = findAttachmentPart(payload.parts, attachmentId);
+    // Start search from the root payload to ensure all parts are checked
+    const part = findAttachmentPart([payload], attachmentId);
 
     if (!part) {
         throw new Error(`Attachment with ID ${attachmentId} not found in message ${messageId}.`);
