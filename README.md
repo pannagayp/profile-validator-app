@@ -57,3 +57,16 @@ GEMINI_API_KEY=YOUR_GEMINI_API_KEY
 🚀 Run the Development Server
 npm run dev
 The app will start on http://localhost:3000
+
+Email in first database :
+<img width="1753" height="813" alt="Screenshot 2025-10-28 085005" src="https://github.com/user-attachments/assets/8581788b-cc0c-4c75-9459-8be194000962" />
+
+cross checks the connected mail with db that if any email is received from registered mail id's only displays the mails if its already registered.
+
+Validating the Email and extracting data from .pdf
+<img width="1178" height="659" alt="Screenshot 2025-10-28 081322" src="https://github.com/user-attachments/assets/4ffd1e2e-5f17-40be-9608-e628eae982b6" />
+<img width="1175" height="640" alt="Screenshot 2025-10-28 081307" src="https://github.com/user-attachments/assets/73829275-9a31-4916-a591-a7f690ae929d" />
+
+
+
+
