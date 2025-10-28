@@ -1,67 +1,59 @@
-# Profile Validator App
+🧠 Profile Validator App
+The Profile Validator App is a Next.js application built using Firebase Studio. It allows users to securely connect their Gmail account, process emails from pre-registered senders, and extract content from either the email body or attachments (PDF, DOCX, or plain text).
 
-This is a Next.js application built in Firebase Studio that allows users to connect to their Gmail account, process emails from pre-registered senders, and extract content from either the email body or its attachments (PDF, DOCX).
+✨ Features
+🔐 Gmail Integration: Securely connect to a Gmail account via OAuth and read unread emails.
 
-## Features
+📧 Sender Verification: Only emails from senders registered in the Firestore client collection are displayed.
 
-- **Gmail Integration**: Securely connect to a user's Gmail account using OAuth to read unread emails.
-- **Sender Verification**: Emails are only displayed if the sender's email address is registered in the Firestore `client` collection.
-- **Content Extraction**: Automatically extracts text content from the email body or supported attachments (`.pdf`, `.docx`, plain text).
-- **Email Dashboard**: A clean UI to list filtered emails, show their attachments, and trigger the content extraction process.
-- **User Management**: A page to view and add new authorized senders to the Firestore database.
-- **AI-Powered Extraction (optional)**: Includes a Genkit flow to process extracted content using the Gemini API.
+🧾 Content Extraction: Automatically extracts text from email bodies and attachments (.pdf, .docx, .txt).
 
-## Tech Stack
+📊 Email Dashboard: A clean, modern UI to list filtered emails, display attachments, and trigger content extraction.
 
-- **Framework**: [Next.js](https://nextjs.org/) (App Router)
-- **Language**: TypeScript
-- **Styling**: [Tailwind CSS](https://tailwindcss.com/)
-- **UI Components**: [ShadCN/UI](https://ui.shadcn.com/)
-- **Database**: [Cloud Firestore](https://firebase.google.com/docs/firestore)
-- **Generative AI**: [Genkit](https://firebase.google.com/docs/genkit) with the Gemini API
-- **Authentication**: Firebase Authentication (for backend) & Google OAuth (for Gmail API)
+👥 User Management: Add or view authorized senders directly from the Firestore database.
 
-## Getting Started
+🤖 AI-Powered Processing (Optional): Includes a Genkit flow using the Gemini API to analyze and refine extracted data.
 
-To get a local copy up and running, follow these steps.
+🧰 Tech Stack
+Framework: Next.js (App Router)
 
-### Prerequisites
+Language: TypeScript
 
-- Node.js (v18 or later)
-- npm or yarn
+Styling: Tailwind CSS
 
-### Installation
+UI Components: ShadCN/UI
 
-1.  **Clone the repository**
-    ```bash
-    git clone https://github.com/pannagayp/profile-validator-app.git
-    cd profile-validator-app
-    ```
+Database: Cloud Firestore
 
-2.  **Install NPM packages**
-    ```bash
-    npm install
-    ```
+Generative AI: Genkit + Gemini API
 
-3.  **Set up Environment Variables**
+Authentication: Firebase Authentication & Google OAuth (Gmail API)
 
-    Create a file named `.env` in the root of your project and add the following variables. You will need to get these credentials from the Google Cloud Console.
+⚙️ Getting Started
+Follow these steps to run the project locally:
 
-    ```
-    # For Google OAuth and Gmail API
-    NEXT_PUBLIC_GMAIL_API_KEY=YOUR_GMAIL_API_KEY
-    NEXT_PUBLIC_GMAIL_CLIENT_ID=YOUR_GMAIL_OAUTH_CLIENT_ID.apps.googleusercontent.com
+✅ Prerequisites
+Node.js (v18 or later)
 
-    # For Genkit AI
-    GEMINI_API_KEY=YOUR_GEMINI_API_KEY
-    ```
+npm or yarn
 
-### Running the Development Server
+📦 Installation
+Clone the Repository:
 
-Once the installation is complete and your environment variables are set, you can run the development server:
+git clone https://github.com/pannagayp/profile-validator-app.git
+cd profile-validator-app
+Install Dependencies:
 
-```bash
+npm install
+Set Up Environment Variables:
+Create a .env file in the root directory and add:
+
+# Google OAuth & Gmail API
+NEXT_PUBLIC_GMAIL_API_KEY=YOUR_GMAIL_API_KEY
+NEXT_PUBLIC_GMAIL_CLIENT_ID=YOUR_GMAIL_OAUTH_CLIENT_ID.apps.googleusercontent.com
+
+# Genkit AI
+GEMINI_API_KEY=YOUR_GEMINI_API_KEY
+🚀 Run the Development Server
 npm run dev
-```
-
-Open [http://localhost:9002](http://localhost:9002) with your browser to see the result.
+The app will start on http://localhost:3000
